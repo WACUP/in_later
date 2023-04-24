@@ -145,9 +145,14 @@ void ASAPInfo_Delete(ASAPInfo *self);
 #define ASAPInfo_VERSION_MICRO 0
 
 /**
+ * ASAP version - micro part.
+ */
+#define ASAPInfo_VERSION_PATCH 2
+
+/**
  * ASAP version as a string.
  */
-#define ASAPInfo_VERSION "5.3.0"
+#define ASAPInfo_VERSION "5.3.0.2"
 
 /**
  * Years ASAP was created in.
@@ -157,7 +162,7 @@ void ASAPInfo_Delete(ASAPInfo *self);
 /**
  * Short credits for ASAP.
  */
-#define ASAPInfo_CREDITS "Another Slight Atari Player (C) 2005-2023 Piotr Fusik\nCMC, MPT, TMC, TM2 players (C) 1994-2005 Marcin Lewandowski\nRMT player (C) 2002-2005 Radek Sterba\nDLT player (C) 2009 Marek Konopka\nCMS player (C) 1999 David Spilka\nFC player (C) 2011 Jerzy Kut\n"
+#define ASAPInfo_CREDITS "Another Slight Atari Player © 2005-2023 Piotr Fusik\nCMC, MPT, TMC, TM2 players © 1994-2005 Marcin Lewandowski\nRMT player © 2002-2005 Radek Sterba\nDLT player © 2009 Marek Konopka\nCMS player © 1999 David Spilka\nFC player © 2011 Jerzy Kut\n"
 
 /**
  * Short license notice.

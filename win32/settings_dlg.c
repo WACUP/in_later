@@ -27,10 +27,14 @@
 #include "asap.h"
 #include "settings_dlg.h"
 
+#define WA_UTILS_SIMPLE
+#include <loader/loader/utils.h>
+#include <loader/loader/paths.h>
+
 void enableTimeInput(HWND hDlg, bool enable)
 {
-	EnableWindow(GetDlgItem(hDlg, IDC_MINUTES), enable);
-	EnableWindow(GetDlgItem(hDlg, IDC_SECONDS), enable);
+	EnableControl(hDlg, IDC_MINUTES, enable);
+	EnableControl(hDlg, IDC_SECONDS, enable);
 }
 
 void setFocusAndSelect(HWND hDlg, int nID)
@@ -57,12 +61,12 @@ void settingsDialogSet(HWND hDlg, int song_length, int silence_seconds, bool pla
 	if (silence_seconds <= 0) {
 		CheckDlgButton(hDlg, IDC_SILENCE, BST_UNCHECKED);
 		SetDlgItemInt(hDlg, IDC_SILSECONDS, DEFAULT_SILENCE_SECONDS, FALSE);
-		EnableWindow(GetDlgItem(hDlg, IDC_SILSECONDS), FALSE);
+		EnableControl(hDlg, IDC_SILSECONDS, FALSE);
 	}
 	else {
 		CheckDlgButton(hDlg, IDC_SILENCE, BST_CHECKED);
 		SetDlgItemInt(hDlg, IDC_SILSECONDS, (UINT) silence_seconds, FALSE);
-		EnableWindow(GetDlgItem(hDlg, IDC_SILSECONDS), TRUE);
+		EnableControl(hDlg, IDC_SILSECONDS, TRUE);
 	}
 	CheckRadioButton(hDlg, IDC_LOOPS, IDC_NOLOOPS, play_loops ? IDC_LOOPS : IDC_NOLOOPS);
 	for (int i = 0; i < 8; i++)
@@ -77,22 +81,29 @@ bool play_loops = false;
 int mute_mask = 0;
 static int saved_mute_mask;
 
+static void writeIniInt(const wchar_t* name, int value, const wchar_t* ini_file)
+{
+	wchar_t str[16] = { 0 };
+	WritePrivateProfileString(INI_SECTION, name, I2WStr(value, str, ARRAYSIZE(str)), ini_file);
+}
+
 static bool getDlgInt(HWND hDlg, int nID, int *result)
 {
 	BOOL translated;
 	UINT r = GetDlgItemInt(hDlg, nID, &translated, FALSE);
 	if (!translated) {
-		MessageBox(hDlg, _T("Invalid number"), _T("Error"), MB_OK | MB_ICONERROR);
+		//MessageBox(hDlg, _T("Invalid number"), _T("Error"), MB_OK | MB_ICONERROR);
 		return false;
 	}
 	*result = (int) r;
 	return true;
 }
 
-static INT_PTR CALLBACK settingsDialogProc(HWND hDlg, UINT uMsg, WPARAM wParam, LPARAM lParam)
+INT_PTR CALLBACK settingsDialogProc(HWND hDlg, UINT uMsg, WPARAM wParam, LPARAM lParam)
 {
 	switch (uMsg) {
 	case WM_INITDIALOG:
+		DarkModeSetup(hDlg);
 		saved_mute_mask = mute_mask;
 		settingsDialogSet(hDlg, song_length, silence_seconds, play_loops, mute_mask);
 		return TRUE;
@@ -109,11 +120,11 @@ static INT_PTR CALLBACK settingsDialogProc(HWND hDlg, UINT uMsg, WPARAM wParam, 
 				return TRUE;
 			case IDC_SILENCE:
 				if (IsDlgButtonChecked(hDlg, IDC_SILENCE) == BST_CHECKED) {
-					EnableWindow(GetDlgItem(hDlg, IDC_SILSECONDS), true);
+					EnableControl(hDlg, IDC_SILSECONDS, true);
 					setFocusAndSelect(hDlg, IDC_SILSECONDS);
 				}
 				else
-					EnableWindow(GetDlgItem(hDlg, IDC_SILSECONDS), false);
+					EnableControl(hDlg, IDC_SILSECONDS, false);
 				return TRUE;
 			case IDC_LOOPS:
 			case IDC_NOLOOPS:
@@ -132,7 +143,16 @@ static INT_PTR CALLBACK settingsDialogProc(HWND hDlg, UINT uMsg, WPARAM wParam, 
 					mute_mask |= mask;
 				else
 					mute_mask &= ~mask;
+
+				if (asap == NULL)
+				{
+					asap = ASAP_New();
+				}
+
+				if (asap != NULL)
+				{
 				ASAP_MutePokeyChannels(asap, mute_mask);
+				}
 				return TRUE;
 			}
 			case IDOK:
@@ -154,12 +174,29 @@ static INT_PTR CALLBACK settingsDialogProc(HWND hDlg, UINT uMsg, WPARAM wParam, 
 					return TRUE;
 				song_length = new_song_length;
 				play_loops = (IsDlgButtonChecked(hDlg, IDC_LOOPS) == BST_CHECKED);
+
+				LPCWSTR ini_file = GetPaths()->winamp_ini_file;
+				writeIniInt(TEXT("song_length"), song_length, ini_file);
+				writeIniInt(TEXT("silence_seconds"), silence_seconds, ini_file);
+				writeIniInt(TEXT("play_loops"), play_loops, ini_file);
+				writeIniInt(TEXT("mute_mask"), mute_mask, ini_file);
+
 				EndDialog(hDlg, IDOK);
 				return TRUE;
 			}
 			case IDCANCEL:
 				mute_mask = saved_mute_mask;
+
+				if (asap == NULL)
+				{
+					asap = ASAP_New();
+				}
+
+				if (asap != NULL)
+				{
 				ASAP_MutePokeyChannels(asap, mute_mask);
+				}
+
 				EndDialog(hDlg, IDCANCEL);
 				return TRUE;
 			}
@@ -171,14 +208,16 @@ static INT_PTR CALLBACK settingsDialogProc(HWND hDlg, UINT uMsg, WPARAM wParam, 
 	return FALSE;
 }
 
+#if 0
 bool settingsDialog(HINSTANCE hInstance, HWND hwndParent)
 {
 	return DialogBox(hInstance, MAKEINTRESOURCE(IDD_SETTINGS), hwndParent, settingsDialogProc) == IDOK;
 }
+#endif
 
-int getSongDurationInternal(const ASAPInfo *info, int song, ASAP *asap)
+int getSongDurationInternal(const ASAPInfo *module_info, int song, ASAP *asap)
 {
-	int duration = ASAPInfo_GetDuration(info, song);
+	int duration = ASAPInfo_GetDuration(module_info, song);
 	if (duration < 0) {
 		if (asap != NULL)
 			ASAP_DetectSilence(asap, silence_seconds);
@@ -186,17 +225,27 @@ int getSongDurationInternal(const ASAPInfo *info, int song, ASAP *asap)
 	}
 	if (asap != NULL)
 		ASAP_DetectSilence(asap, 0);
-	if (play_loops && ASAPInfo_GetLoop(info, song))
+	if (play_loops && ASAPInfo_GetLoop(module_info, song))
 		return 1000 * song_length;
 	return duration;
 }
 
-int playSong(int song)
+int playSong(const int song)
 {
-	int duration = getSongDurationInternal(ASAP_GetInfo(asap), song, asap);
-	ASAP_PlaySong(asap, song, duration); /* FIXME: check errors */
+	if (asap == NULL)
+	{
+		asap = ASAP_New();
+	}
+	if (asap != NULL)
+	{
+		const int duration = getSongDurationInternal(ASAP_GetInfo(asap), song, asap);
+		if (ASAP_PlaySong(asap, song, duration)) /* FIXME: check errors */
+{
 	ASAP_MutePokeyChannels(asap, mute_mask);
 	return duration;
+		}
+	}
+	return -1;
 }
 
 #endif /* FOOBAR2000 */

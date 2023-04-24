@@ -1,0 +1,1142 @@
+/*
+ * in_asap.c - ASAP plugin for Winamp
+ *
+ * Copyright (C) 2005-2019  Piotr Fusik
+ *
+ * This file is part of ASAP (Another Slight Atari Player),
+ * see http://asap.sourceforge.net
+ *
+ * ASAP is free software; you can redistribute it and/or modify it
+ * under the terms of the GNU General Public License as published
+ * by the Free Software Foundation; either version 2 of the License,
+ * or (at your option) any later version.
+ *
+ * ASAP is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty
+ * of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+ * See the GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with ASAP; if not, write to the Free Software Foundation, Inc.,
+ * 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
+ */
+
+#include <windows.h>
+#include <stdlib.h>
+#include <strsafe.h>
+#include <commctrl.h>
+#include <stdbool.h>
+#include <stdio.h>
+#include <string.h>
+
+#include <sdk/winamp/in2.h>
+#include <sdk/winamp/ipc_pe.h>
+#include <sdk/winamp/wa_ipc.h>
+#include <sdk/nu/AutoChar.h>
+#include <sdk/nu/AutoCharFn.h>
+#include "api.h"
+#include <loader/loader/paths.h>
+#include <loader/loader/utils.h>
+#include "../wacup_version.h"
+
+#include "aatr-stdio.h"
+#include "asap.h"
+#include "..\info_dlg.h"
+#include "..\settings_dlg.h"
+#include "..\winamp\resource.h"
+#include "..\..\astil.h"
+
+ // wasabi based services for localisation support
+SETUP_API_LNG_VARS;
+
+// {AFE5A171-710D-471d-A927-FF68AA4BA84B}
+static const GUID InASAPLangGUID =
+{ 0xafe5a171, 0x710d, 0x471d, { 0xa9, 0x27, 0xff, 0x68, 0xaa, 0x4b, 0xa8, 0x4b } };
+
+// Winamp's equalizer works only with 16-bit samples
+#define SUPPORT_EQUALIZER  1
+
+#define BITS_PER_SAMPLE    16
+// 576 is a magic number for Winamp, better do not modify it
+#define BUFFERED_BLOCKS    576
+
+extern In_Module plugin;
+
+// configuration
+//#define INI_SECTION  TEXT("in_asap")
+//static const wchar_t *ini_file;
+
+// current file
+ASAP *asap = NULL;
+static wchar_t playing_filename_with_song[MAX_PATH + 3] = TEXT("");
+static BYTE *playing_module/*[ASAPInfo_MAX_MODULE_LENGTH]*/;
+static int playing_module_len;
+static int duration;
+
+static int playlistLength;
+
+static HANDLE thread_handle = NULL;
+static volatile bool thread_run = false;
+static bool paused = false;
+static int seek_needed;
+
+static ASAPInfo *title_info, *playlist_info;
+//static int title_song;
+
+#if 0
+static void writeIniInt(const wchar_t *name, int value, const wchar_t *ini_file)
+{
+	wchar_t str[16] = { 0 };
+	WritePrivateProfileString(INI_SECTION, name, I2WStr(value, str, ARRAYSIZE(str)), ini_file);
+}
+
+void onUpdatePlayingInfo(void)
+{
+	writeIniInt(TEXT("playing_info"), playing_info, GetPaths()->winamp_ini_file);
+}
+#endif
+
+static void read_config(void)
+{
+	static bool loaded;
+	if (!loaded)
+	{
+		loaded = true;
+
+		LPCWSTR ini_file = GetPaths()->winamp_ini_file;
+		song_length = GetPrivateProfileInt(INI_SECTION, TEXT("song_length"), song_length, ini_file);
+		silence_seconds = GetPrivateProfileInt(INI_SECTION, TEXT("silence_seconds"), silence_seconds, ini_file);
+		play_loops = GetPrivateProfileInt(INI_SECTION, TEXT("play_loops"), play_loops, ini_file);
+		mute_mask = GetPrivateProfileInt(INI_SECTION, TEXT("mute_mask"), mute_mask, ini_file);
+		playing_info = GetPrivateProfileInt(INI_SECTION, TEXT("playing_info"), playing_info, ini_file);
+	}
+}
+
+static void config(HWND hwndParent)
+{
+	read_config();
+
+	WASABI_API_DIALOGBOXW(IDD_SETTINGS, hwndParent, settingsDialogProc);
+
+#if 0
+	if (settingsDialog(plugin.hDllInstance, hwndParent))
+	{
+		LPCWSTR ini_file = GetPaths()->winamp_ini_file;
+		writeIniInt(TEXT("song_length"), song_length, ini_file);
+		writeIniInt(TEXT("silence_seconds"), silence_seconds, ini_file);
+		writeIniInt(TEXT("play_loops"), play_loops, ini_file);
+		writeIniInt(TEXT("mute_mask"), mute_mask, ini_file);
+	}
+#endif
+}
+
+static void about(HWND hwndParent)
+{
+	wchar_t message[1024] = { 0 }, title[1024] = { 0 };
+	// TODO localise
+	StringCchPrintf(message, ARRAYSIZE(message), TEXT("%s\n\n%hs\nWACUP related "
+					"modifications by Darren Owen aka DrO (%s)\n\nBuild date: %s"
+					"\n\n%hs"), (wchar_t*)plugin.description, ASAPInfo_CREDITS,
+					WACUP_COPYRIGHT, TEXT(__DATE__), ASAPInfo_COPYRIGHT);
+	AboutMessageBox(hwndParent, message, title);
+}
+
+static int extractSongNumber(const wchar_t *s, wchar_t *filename)
+{
+	// for compatibility this will handle "<file>#index" but the
+	// preferred handling under a WACUP instance is "<file>,index"
+	int i = (int)_tcslen(s);
+	int song = -1;
+	if (i > 6 && s[i - 1] >= L'0' && s[i - 1] <= L'9') {
+		if (s[i - 2] == L',' || s[i - 2] == L'#') {
+			song = s[i - 1] - L'1';
+			i -= 2;
+		}
+		else if (s[i - 2] >= L'0' && s[i - 2] <= L'9' &&
+				 (s[i - 3] == L',' || s[i - 3] == L'#')) {
+			song = (s[i - 2] - L'0') * 10 + s[i - 1] - L'1';
+			i -= 3;
+		}
+	}
+	memcpy(filename, s, i * sizeof(wchar_t));
+	filename[i] = '\0';
+	return song;
+}
+
+static BOOL isATR(const wchar_t *filename)
+{
+	LPCWSTR ext = FindPathExtension(filename);
+	return (SameStr(ext, L"atr"));/*/
+	size_t len = strlen(filename);
+	return len >= 4 && stricmp(filename + len - 4, TEXT(".atr")) == 0;/**/
+}
+
+static void addFileSongs(HWND playlistWnd, fileinfo *fi, const ASAPInfo *info, int *index)
+{
+#if 0
+	char *p = fi->file + strlen(fi->file);
+	for (int song = 0; song < ASAPInfo_GetSongs(info); song++) {
+		sprintf(p, ",%d", song + 1);
+		fi->index = (*index)++;
+		COPYDATASTRUCT cds;
+		cds.dwData = IPC_PE_INSERTFILENAME;
+		cds.lpData = fi;
+		cds.cbData = sizeof(fileinfo);
+		SendMessage(playlistWnd, WM_COPYDATA, 0, (LPARAM) &cds);
+	}
+#endif
+}
+
+static void expandFileSongs(HWND playlistWnd, int index, ASAPInfo *info)
+{
+#if 0	// TODO
+	const wchar_t *fn = (const wchar_t *) SendMessage(plugin.hMainWindow, WM_WA_IPC, index, IPC_GETPLAYLISTFILEW);
+	fileinfoW fi;
+	int song = extractSongNumber(fn, fi.file);
+	if (song >= 0)
+		return;
+	if (ASAPInfo_IsOurFile(fi.file)) {
+		if (loadModule(fi.file, module, &module_len)
+		 && ASAPInfo_Load(info, fi.file, module, module_len)) {
+			SendMessage(playlistWnd, WM_WA_IPC, IPC_PE_DELETEINDEX, index);
+			addFileSongs(playlistWnd, &fi, info, &index);
+		}
+	}
+	else if (isATR(fi.file)) {
+		AATR *disk = AATRStdio_New(fi.file);
+		if (disk != NULL) {
+			bool found = false;
+			AATRRecursiveLister *lister = AATRRecursiveLister_New();
+			if (lister != NULL) {
+				AATRFileStream *stream = AATRFileStream_New();
+				if (stream != NULL) {
+					size_t atr_fn_len = strlen(fi.file);
+					fi.file[atr_fn_len++] = '#';
+					AATRRecursiveLister_Open(lister, disk);
+					for (;;) {
+						const char *inside_fn = AATRRecursiveLister_NextFile(lister);
+						if (inside_fn == NULL)
+							break;
+						if (ASAPInfo_IsOurFile(inside_fn)) {
+							AATRFileStream_Open(stream, AATRRecursiveLister_GetDirectory(lister));
+							module_len = AATRFileStream_Read(stream, module, 0, sizeof(module));
+							if (ASAPInfo_Load(info, inside_fn, module, module_len)) {
+								size_t inside_fn_len = strlen(inside_fn);
+								if (atr_fn_len + inside_fn_len + 4 <= sizeof(fi.file)) {
+									memcpy(fi.file + atr_fn_len, inside_fn, inside_fn_len + 1);
+									if (!found) {
+										found = true;
+										SendMessage(playlistWnd, WM_WA_IPC, IPC_PE_DELETEINDEX, index);
+									}
+									addFileSongs(playlistWnd, &fi, info, &index);
+								}
+							}
+						}
+					}
+					AATRFileStream_Delete(stream);
+				}
+				AATRRecursiveLister_Delete(lister);
+			}
+			AATRStdio_Delete(disk);
+			/* Prevent Winamp crash:
+			   1. Play anything.
+			   2. Open an ATR with no songs.
+			   3. If the ATR deletes itself, Winamp crashes (tested with 5.581).
+			   Solution: leave the ATR on playlist. */
+			if (!found && SendMessage(plugin.hMainWindow, WM_WA_IPC, 0, IPC_GETLISTLENGTH) > 1)
+				SendMessage(playlistWnd, WM_WA_IPC, IPC_PE_DELETEINDEX, index);
+		}
+	}
+#endif
+}
+
+#if 0
+static INT_PTR CALLBACK progressDialogProc(HWND hDlg, UINT uMsg, WPARAM wParam, LPARAM lParam)
+{
+	if (uMsg == WM_INITDIALOG)
+		SendDlgItemMessage(hDlg, IDC_PROGRESS, PBM_SETRANGE, 0, MAKELPARAM(0, playlistLength));
+	return FALSE;
+}
+#endif
+
+static void expandPlaylistSongs(void)
+{
+#if 0
+	static bool processing = false;
+	if (processing)
+		return;
+	HWND playlistWnd = (HWND) SendMessage(plugin.hMainWindow, WM_WA_IPC, IPC_GETWND_PE, IPC_GETWND);
+	if (playlistWnd == NULL)
+		return;
+	processing = true;
+	ASAPInfo *info = ASAPInfo_New();
+	playlistLength = SendMessage(plugin.hMainWindow, WM_WA_IPC, 0, IPC_GETLISTLENGTH);
+	HWND progressWnd = CreateDialog(plugin.hDllInstance, MAKEINTRESOURCE(IDD_PROGRESS), plugin.hMainWindow, progressDialogProc);
+	int index = playlistLength;
+	while (--index >= 0) {
+		if ((index & 15) == 0)
+			SendDlgItemMessage(progressWnd, IDC_PROGRESS, PBM_SETPOS, playlistLength - index, 0);
+		expandFileSongs(playlistWnd, index, info);
+	}
+	DestroyWindow(progressWnd);
+	ASAPInfo_Delete(info);
+	processing = false;
+#endif
+}
+
+static int init(void)
+{
+	// loader so that we can get the localisation service api for use
+	WASABI_API_LNG = plugin.language;
+
+	// need to have this initialised before we try to do anything with localisation features
+	WASABI_API_START_LANG(plugin.hDllInstance, InASAPLangGUID);
+
+	wchar_t szDescription[256] = { 0 };
+	StringCchPrintf(szDescription, ARRAYSIZE(szDescription),
+					WASABI_API_LNGSTRINGW(IDS_PLUGIN_NAME), ASAPInfo_VERSION);
+	plugin.description = (char*)plugin.memmgr->sysDupStr(szDescription);
+
+	return IN_INIT_SUCCESS;
+}
+
+static void quit(void)
+{
+	if (asap != NULL)
+	{
+		ASAP_Delete(asap);
+		asap = NULL;
+	}
+}
+
+#if 0
+static void getTitle(char *title)
+{
+	if (ASAPInfo_GetSongs(title_info) > 1)
+		sprintf(title, "%s (song %d)", ASAPInfo_GetTitleOrFilename(title_info), title_song + 1);
+	else
+		strcpy(title, ASAPInfo_GetTitleOrFilename(title_info));
+}
+
+static char *tagFunc(char *tag, void *p)
+{
+	if (_stricmp(tag, "artist") == 0) {
+		const char *author = ASAPInfo_GetAuthor(title_info);
+		return author[0] != '\0' ? _strdup(author) : NULL;
+	}
+	if (_stricmp(tag, "title") == 0) {
+		char *title = (char*)malloc(strlen(ASAPInfo_GetTitleOrFilename(title_info)) + 11);
+		if (title != NULL)
+			getTitle(title);
+		return title;
+	}
+	return NULL;
+}
+
+static void tagFreeFunc(char *tag, void *p)
+{
+	free(tag);
+}
+#endif
+
+static void getFileInfo(const in_char *file, in_char *title, int *length_in_ms)
+{
+#if 0	// TODO
+	if (file == NULL || file[0] == '\0')
+		file = playing_filename_with_song;
+	char filename[MAX_PATH];
+	title_song = extractSongNumber(file, filename);
+	if (title_song < 0)
+		expandPlaylistSongs();
+	if (!loadModule(filename, module, &module_len))
+		return;
+	const char *hash = atrFilenameHash(filename);
+	if (!ASAPInfo_Load(title_info, hash != NULL ? hash + 1 : filename, module, module_len))
+		return;
+	if (title_song < 0)
+		title_song = ASAPInfo_GetDefaultSong(title_info);
+	if (title != NULL) {
+		waFormatTitle fmt_title = {
+			NULL, NULL, title, 512, tagFunc, tagFreeFunc
+		};
+		getTitle(title); // in case IPC_FORMAT_TITLE doesn't work...
+		SendMessage(plugin.hMainWindow, WM_WA_IPC, (WPARAM) &fmt_title, IPC_FORMAT_TITLE);
+	}
+	if (length_in_ms != NULL)
+		*length_in_ms = getSongDuration(title_info, title_song);
+#else
+	if (file == NULL || file[0] == '\0')
+	{
+		if (length_in_ms != NULL)
+		{
+			*length_in_ms = duration;
+		}
+	}
+
+	if (title)
+	{
+		*title = 0;
+	}
+#endif
+}
+
+static int infoBox(const in_char *file, HWND hwndParent)
+{
+#if 0	// TODO
+	char filename[MAX_PATH];
+	int song = extractSongNumber(file, filename);
+	showInfoDialog(plugin.hDllInstance, hwndParent, filename, song);
+	return 0;
+#else
+	return INFOBOX_UNCHANGED;
+#endif
+}
+
+static int isOurFile(const in_char *fn)
+{
+	wchar_t filename[MAX_PATH] = { 0 };
+	extractSongNumber(fn, filename);
+	LPCWSTR ext = FindPathExtension(filename);
+	return (ext ? ASAPInfo_IsOurExt(AutoChar(ext)) : 0);
+}
+
+static DWORD WINAPI playThread(LPVOID dummy)
+{
+	const int channels = ASAPInfo_GetChannels(ASAP_GetInfo(asap));
+	while (thread_run) {
+		static BYTE buffer[BUFFERED_BLOCKS * 2 * (BITS_PER_SAMPLE / 8)
+#if SUPPORT_EQUALIZER
+			* 2
+#endif
+			];
+		int buffered_bytes = BUFFERED_BLOCKS * channels * (BITS_PER_SAMPLE / 8);
+		if (seek_needed >= 0) {
+			plugin.outMod->Flush(seek_needed);
+			ASAP_Seek(asap, seek_needed);
+			seek_needed = -1;
+		}
+		if (plugin.outMod->CanWrite() >= buffered_bytes
+#if SUPPORT_EQUALIZER
+			<< plugin.dsp_isactive()
+#endif
+		) {
+			buffered_bytes = ASAP_Generate(asap, buffer, buffered_bytes, /*BITS_PER_SAMPLE == 8 ?
+												ASAPSampleFormat_U8 :*/ ASAPSampleFormat_S16_L_E);
+			if (buffered_bytes <= 0) {
+				plugin.outMod->CanWrite();
+				if (!plugin.outMod->IsPlaying()) {
+					PostEOF();/*/
+					PostMessage(plugin.hMainWindow, WM_WA_MPEG_EOF, 0, 0);/**/
+					break;
+				}
+				SleepEx(10, TRUE);
+				continue;
+			}
+			int t = plugin.outMod->GetWrittenTime();
+			plugin.SAAddPCMData(buffer, channels, BITS_PER_SAMPLE, t);
+			plugin.VSAAddPCMData(buffer, channels, BITS_PER_SAMPLE, t);
+#if SUPPORT_EQUALIZER
+			t = buffered_bytes / (channels * (BITS_PER_SAMPLE / 8));
+			t = plugin.dsp_dosamples((short *) buffer, t, BITS_PER_SAMPLE, channels, ASAP_SAMPLE_RATE);
+			t *= channels * (BITS_PER_SAMPLE / 8);
+			plugin.outMod->Write((char *) buffer, t);
+#else
+			plugin.outMod->Write((char *) buffer, buffered_bytes);
+#endif
+		}
+		else
+			SleepEx(20, TRUE);
+	}
+
+	if (thread_handle != NULL)
+	{
+		CloseHandle(thread_handle);
+		thread_handle = NULL;
+	}
+	return 0;
+}
+
+static int play(const in_char *fn)
+{
+	read_config();
+
+	if (asap == NULL)
+	{
+		asap = ASAP_New();
+	}
+	if (asap != NULL)
+	{
+		_tcscpy(playing_filename_with_song, fn);
+		wchar_t filename[MAX_PATH] = { 0 };
+		int song = extractSongNumber(fn, filename);
+
+		if (playing_module == NULL)
+		{
+			playing_module = (BYTE*)plugin.memmgr->sysMalloc(ASAPInfo_MAX_MODULE_LENGTH);
+		}
+
+		if (!loadModule(filename, playing_module, &playing_module_len))
+			return -1;
+		AutoCharFn file(filename);
+		if (!ASAP_Load(asap, file, playing_module, playing_module_len))
+			return 1;
+		const ASAPInfo *info = ASAP_GetInfo(asap);
+		if (song < 0)
+			song = ASAPInfo_GetDefaultSong(info);
+		duration = playSong(song);
+		if (duration < 0)
+			return 1;
+
+		const int channels = ASAPInfo_GetChannels(info);
+		const int maxlatency = plugin.outMod->Open(ASAP_SAMPLE_RATE, channels, BITS_PER_SAMPLE, -1, -1);
+		if (maxlatency < 0)
+			return 1;
+		plugin.SetInfo(1411/*/BITS_PER_SAMPLE/**/, ASAP_SAMPLE_RATE / 1000, channels, 1);
+		plugin.SAVSAInit(maxlatency, ASAP_SAMPLE_RATE);
+		// the order of VSASetInfo's arguments in in2.h is wrong!
+		// http://forums.winamp.com/showthread.php?postid=1841035
+		plugin.VSASetInfo(ASAP_SAMPLE_RATE, channels);
+		plugin.outMod->SetVolume(-666);
+		seek_needed = -1;
+
+		thread_handle = CreateThread(NULL, 0, playThread, NULL, CREATE_SUSPENDED, NULL);
+		if (thread_handle)
+		{
+			thread_run = true;
+			SetThreadPriority(thread_handle, (int)plugin.config->
+							  GetInt(playbackConfigGroupGUID,
+							  L"priority", THREAD_PRIORITY_HIGHEST));
+			ResumeThread(thread_handle);
+		}
+		//setPlayingSong(filename, song);
+		return (thread_handle != NULL ? 0 : 1);
+	}
+	return -1;
+}
+
+static void pause(void)
+{
+	paused = true;
+	plugin.outMod->Pause(1);
+}
+
+static void unPause(void)
+{
+	paused = false;
+	plugin.outMod->Pause(0);
+}
+
+static int isPaused(void)
+{
+	return paused;
+}
+
+static void stop(void)
+{
+	if (thread_handle != NULL)
+	{
+		thread_run = false;
+		// wait max 10 seconds
+		WaitForSingleObjectEx(thread_handle, 10 * 1000, TRUE);
+		CloseHandle(thread_handle);
+		thread_handle = NULL;
+	}
+
+	plugin.outMod->Close();
+	plugin.SAVSADeInit();
+}
+
+static int getLength(void)
+{
+	return duration;
+}
+
+static int getOutputTime(void)
+{
+	return plugin.outMod->GetOutputTime();
+}
+
+static void setOutputTime(int time_in_ms)
+{
+	seek_needed = time_in_ms;
+}
+
+static void setVolume(int volume)
+{
+	plugin.outMod->SetVolume(volume);
+}
+
+static void setPan(int pan)
+{
+	plugin.outMod->SetPan(pan);
+}
+
+void GetFileExtensions(void)
+{
+	static bool loaded_extensions;
+	if (!loaded_extensions)
+	{
+		// TODO localise
+		plugin.FileExtensions = (char*)L"SAP\0Slight Atari Player (*.SAP)\0"
+									   L"CMC;CM3;CMR;CMS;DMC\0Chaos Music Composer "
+									   L"(*.CMC;*.CM3;*.CMR;*.CMS;*.DMC)\0"
+									   L"DLT\0Delta Music Composer (*.DLT)\0"
+									   L"MPT;MPD\0Music ProTracker (*.MPT;*.MPD)\0"
+									   L"RMT\0Raster Music Tracker (*.RMT)\0"
+									   L"TMC;TM8\0Theta Music Composer 1.x (*.TMC;*.TM8)\0"
+									   L"TM2\0Theta Music Composer 2.x (*.TM2)\0"
+									   L"FC\0Future Composer (*.FC)\0"
+									   L"ATR\0Atari 8-bit disk image (*.ATR)\0";
+		loaded_extensions = true;
+	}
+}
+const wchar_t wacup_plugin_id[] = { L'w', L'a', L'c', L'u', L'p', L'(', L'i', L'n', L'_', L'l',
+									L'a', L't', L'e', L'r', L'.', L'd', L'l', L'l', L')', 0 };
+In_Module plugin = {
+	IN_VER_WACUP,
+	/*"ASAP " ASAPInfo_VERSION/*/
+	(char*)wacup_plugin_id/**/,
+	0, 0, // filled by Winamp
+	0,	  // filled in by GetFileExtensions
+	1,    // is_seekable
+	1,    // UsesOutputPlug
+	config,
+	about,
+	init,
+	quit,
+	getFileInfo,
+	infoBox,
+	isOurFile,
+	play,
+	pause,
+	unPause,
+	isPaused,
+	stop,
+	getLength,
+	getOutputTime,
+	setOutputTime,
+	setVolume,
+	setPan,
+	0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, // filled by Winamp
+	NULL,
+	NULL,	// SetInfo
+	NULL,	// filled by Winamp
+	NULL,	// api_service
+	INPUT_HAS_READ_META | INPUT_USES_UNIFIED_ALT3 |
+	INPUT_HAS_FORMAT_CONVERSION_UNICODE |
+	INPUT_HAS_FORMAT_CONVERSION_SET_TIME_MODE,
+	GetFileExtensions,	// loading optimisation
+	IN_INIT_WACUP_END_STRUCT
+};
+
+extern "C" __declspec(dllexport) In_Module *winampGetInModule2(void)
+{
+	return &plugin;
+}
+
+extern "C" __declspec(dllexport) int winampUninstallPlugin(HINSTANCE hDllInst, HWND hwndDlg, int param)
+{
+	// TODO
+	// prompt to remove our settings with default as no (just incase)
+	/*if (MessageBox(hwndDlg, WASABI_API_LNGSTRINGW(IDS_PLUGIN_UNINSTALL),
+				   (LPCWSTR)plugin.description, MB_YESNO | MB_DEFBUTTON2) == IDYES)
+	{
+		REMOVE_INI_SECTION_W(app_nameW, 0);
+	}*/
+
+	// as we're doing too much in subclasses, etc we cannot allow for on-the-fly removal so need to do a normal reboot
+	return IN_PLUGIN_UNINSTALL_REBOOT;
+}
+
+// TODO localise
+extern "C" const wchar_t* pExtList[15] = { L"SAP", L"CMC", L"CM3", L"CMR", L"CMS",
+										   L"DMC", L"DLT", L"MPT", L"MPD", L"RMT",
+										   L"TMC", L"TM8", L"TM2", L"FC", L"ATR" };
+extern "C" const wchar_t* pExtDescList[15] =
+{
+	L"Slight Atari Player File",
+	L"Chaos Music Composer File",
+	L"Chaos Music Composer File",
+	L"Chaos Music Composer File",
+	L"Chaos Music Composer File",
+	L"Chaos Music Composer File",
+	L"Delta Music Composer File",
+	L"Music ProTracker File",
+	L"Music ProTracker File",
+	L"Raster Music Tracker File",
+	L"Theta Music Composer 1.x File",
+	L"Theta Music Composer 1.x File",
+	L"Theta Music Composer 2.x File",
+	L"Future Composer File",
+	L"Atari 8-bit Disk Image",
+};
+
+BOOL GetExtensionName(LPCWSTR pszExt, LPWSTR pszDest, INT cchDest)
+{
+	int index = sizeof(pExtList) / sizeof(wchar_t*) - 1;
+	for (; (index >= 0) && (CSTR_EQUAL != CompareStringEx(LOCALE_NAME_INVARIANT, NORM_IGNORECASE, pszExt,
+													  -1, pExtList[index], -1, NULL, NULL, 0)); index--);
+	return ((index >= 0) && (StringCchCopy(pszDest, cchDest, pExtDescList[index]) == S_OK));
+}
+
+// return 1 if you want winamp to show it's own file info dialogue, 0 if you want to show your own (via In_Module.InfoBox)
+// if returning 1, remember to implement winampGetExtendedFileInfo("formatinformation")!
+extern "C" __declspec(dllexport) int winampUseUnifiedFileInfoDlg(const wchar_t* fn)
+{
+	return 1;
+}
+
+static wchar_t* appendAddress(wchar_t* p, const wchar_t* format, int value)
+{
+	if (value >= 0)
+	{
+		p += swprintf(p, format, value);
+	}
+	return p;
+}
+
+static char* appendStilString(char* p, const char* s)
+{
+	for (;;)
+	{
+		char c = *s++;
+		switch (c)
+		{
+			case '\0':
+				return p;
+			case '\n':
+				c = ' ';
+				break;
+			default:
+				break;
+		}
+		*p++ = c;
+	}
+}
+
+static char* appendStil(char* p, const char* prefix, const char* value)
+{
+	if (value[0] != '\0')
+	{
+		p = appendStilString(p, prefix);
+		p = appendStilString(p, value);
+		*p++ = '\r';
+		*p++ = '\n';
+	}
+	return p;
+}
+
+static int get_metadata(const char* filename, const ASAPInfo* info, int song,
+						BYTE *the_module, const int the_module_len,
+						const char* data, wchar_t* dest, const int destlen)
+{
+	if (song < 0)
+	{
+		song = ASAPInfo_GetDefaultSong(info);
+	}
+
+	if (SameStrA(data, "length"))
+	{
+		I2WStr(getSongDuration(info, song), dest, destlen);
+		return 1;
+	}
+	else if (SameStrA(data, "artist"))
+	{
+		const char* author = ASAPInfo_GetAuthor(info);
+		if (author && *author)
+		{
+			ConvertANSI(author, CP_ACP, dest, destlen);
+			return 1;
+		}
+	}
+	else if (SameStrA(data, "title"))
+	{
+		const char* title = ASAPInfo_GetTitle(info);
+		if (title && *title)
+		{
+			ConvertANSI(title, CP_ACP, dest, destlen);
+			return 1;
+		}
+	}
+	else if (SameStrA(data, "year"))
+	{
+		const char* date = ASAPInfo_GetDate(info);
+		if (date && *date)
+		{
+			// clean-up the date to try to just be
+			// the year that wacup is expecting...
+			const char* slash = strrchr(date, '/');
+			char* space = (char*)strrchr(date, ' ');
+			if (space)
+			{
+				*space = 0;
+			}
+			ConvertANSI((slash ? (slash + 1) : date), CP_ACP, dest, destlen);
+			return 1;
+		}
+	}
+	else if (SameStrA(data, "formatinformation"))
+	{
+		wchar_t* p = dest;
+		const int length = getSongDuration(info, song);
+		if (length > 0)
+		{
+			p += swprintf(p, L"Length: %.2f seconds\r\n", length / 1000.f);
+		}
+
+		const char* ext = ASAPInfo_GetOriginalModuleExt(info, the_module, the_module_len);
+		if (ext != NULL)
+		{
+			p += swprintf(p, L"Composed in %hs\r\n", ASAPInfo_GetExtDescription(ext));
+		}
+
+		int i = ASAPInfo_GetSongs(info);
+		if (i > 1)
+		{
+			p += swprintf(p, L"Songs: %d\r\n", i);
+			i = ASAPInfo_GetDefaultSong(info);
+			if (i > 0)
+			{
+				p += swprintf(p, L"Default Song: %d\r\n", i + 1);
+			}
+		}
+
+		p += swprintf(p, L"Channels: ");
+		p += swprintf(p, ASAPInfo_GetChannels(info) > 1 ? L"Stereo\t" : L"Mono\t");
+		p += swprintf(p, L"Mode: ");
+		p += swprintf(p, ASAPInfo_IsNtsc(info) ? L"NTSC\r\n" : L"PAL\r\n");
+
+		const int type = ASAPInfo_GetTypeLetter(info);
+		if (type != 0)
+		{
+			p += swprintf(p, L"Type: %c\r\n", type);
+		}
+		p += swprintf(p, L"Fastplay: %d (%d Hz)\r\n", ASAPInfo_GetPlayerRateScanlines(info),
+															ASAPInfo_GetPlayerRateHz(info));
+		if (type == 'C')
+		{
+			p += swprintf(p, L"Music: %04X\r\n", ASAPInfo_GetMusicAddress(info));
+		}
+
+		if (type != 0)
+		{
+			p = appendAddress(p, L"Init: %04X\r\n", ASAPInfo_GetInitAddress(info));
+			p = appendAddress(p, L"Player: %04X\r\n", ASAPInfo_GetPlayerAddress(info));
+			p = appendAddress(p, L"Covox: %04X\r\n", ASAPInfo_GetCovoxAddress(info));
+		}
+
+		i = ASAPInfo_GetSapHeaderLength(info);
+		if (i >= 0)
+		{
+			while (p < dest + destlen - 17 && i + 4 < the_module_len)
+			{
+				int start = the_module[i] + (the_module[i + 1] << 8);
+				if (start == 0xffff)
+				{
+					i += 2;
+					start = the_module[i] + (the_module[i + 1] << 8);
+				}
+
+				const int end = the_module[i + 2] + (the_module[i + 3] << 8);
+				p += swprintf(p, L"Load: %04X-%04X\r\n", start, end);
+				i += 5 + end - start;
+			}
+		}
+		return 1;
+	}
+	else if (SameStrA(data, "bitrate"))
+	{
+		StringCchCopy(dest, destlen, L"1411");
+		return 1;
+	}
+	else if (SameStrA(data, "genre"))
+	{
+		StringCchCopy(dest, destlen, L"Video Game Music");
+		return 1;
+	}
+	else if (SameStrA(data, "comment"))
+	{
+		ASTIL *astil = ASTIL_New();
+		if (astil != NULL)
+		{
+			if (ASTIL_Load(astil, filename, song))
+			{
+				char *buf = (char*)plugin.memmgr->sysMalloc(16000);
+				if (buf)
+				{
+					char* p = buf;
+					p = appendStil(p, "", ASTIL_GetTitle(astil));
+					p = appendStil(p, "by ", ASTIL_GetAuthor(astil));
+					p = appendStil(p, "Directory comment: ", ASTIL_GetDirectoryComment(astil));
+					p = appendStil(p, "File comment: ", ASTIL_GetFileComment(astil));
+					p = appendStil(p, "Song comment: ", ASTIL_GetSongComment(astil));
+
+					for (int i = 0; ; i++)
+					{
+						const ASTILCover* cover = ASTIL_GetCover(astil, i);
+						if (cover == NULL)
+						{
+							break;
+						}
+
+						const int startSeconds = ASTILCover_GetStartSeconds(cover);
+						if (startSeconds >= 0)
+						{
+							const int endSeconds = ASTILCover_GetEndSeconds(cover);
+							if (endSeconds >= 0)
+							{
+								p += sprintf(p, "At %d:%02d-%d:%02d c", startSeconds / 60, startSeconds % 60, endSeconds / 60, endSeconds % 60);
+							}
+							else
+							{
+								p += sprintf(p, "At %d:%02d c", startSeconds / 60, startSeconds % 60);
+							}
+						}
+						else
+						{
+							*p++ = 'C';
+						}
+
+						const char* s = ASTILCover_GetTitleAndSource(cover);
+						p = appendStil(p, "overs: ", s[0] != '\0' ? s : "<?>");
+						p = appendStil(p, "by ", ASTILCover_GetArtist(cover));
+						p = appendStil(p, "Comment: ", ASTILCover_GetComment(cover));
+					}
+
+					ConvertANSI(buf, (ASTIL_IsUTF8(astil) ? CP_UTF8 : CP_ACP), dest, destlen);
+					plugin.memmgr->sysFree(buf);
+				}
+			}
+			ASTIL_Delete(astil);
+			return 1;
+		}
+	}
+	return 0;
+}
+
+extern "C" __declspec(dllexport) int winampGetExtendedFileInfoW(const wchar_t *fn, const char *data, wchar_t *dest, int destlen)
+{
+	if (SameStrA(data, "type") ||
+		SameStrA(data, "streammetadata"))
+	{
+		dest[0] = '0';
+		dest[1] = 0;
+		return 1;
+	}
+	else if (SameStrA(data, "streamgenre") ||
+			 SameStrA(data, "streamtype") ||
+			 SameStrA(data, "streamurl") ||
+			 SameStrA(data, "streamname"))
+	{
+		return 0;
+	}
+
+	if (!fn || !fn[0])
+	{
+		return 0;
+	}
+
+	if (SameStrA(data, "family"))
+	{
+		LPCWSTR ext = FindPathExtension(fn);
+		return (ext ? GetExtensionName(ext, dest, destlen) : 0);
+	}
+
+	read_config();
+
+	static BYTE* title_module = (BYTE*)plugin.memmgr->sysMalloc(ASAPInfo_MAX_MODULE_LENGTH);
+	static int title_module_len;
+
+	wchar_t filename[MAX_PATH] = { 0 };
+	int title_song = extractSongNumber(fn, filename);
+
+	// if we're playing then try to get the metadata
+	// from that copy to save loading a new instance
+	const bool playing = SameStr(fn, playing_filename_with_song);
+	if (playing)
+	{
+		AutoCharFn file(fn);
+		return get_metadata(file, ASAP_GetInfo(asap), title_song, playing_module,
+										playing_module_len, data, dest, destlen);
+	}
+
+	// TODO minimise re-reading the file again if
+	//		it's only just been loaded / playing
+	if (loadModule(filename, title_module, &title_module_len))
+	{
+		LPCTSTR hashW = atrFilenameHash(filename);
+		AutoChar hash(hashW);
+		AutoCharFn file(filename);
+
+		if (title_info == NULL)
+		{
+			title_info = ASAPInfo_New();
+		}
+
+		if (ASAPInfo_Load(title_info, hash != NULL ? hash + 1 : file, title_module, title_module_len))
+		{
+			return get_metadata(file, title_info, title_song, title_module,
+									title_module_len, data, dest, destlen);
+		}
+	}
+	return 0;
+}
+
+
+struct ExtendedRead
+{
+	ExtendedRead() : asap(ASAP_New()), info(NULL), module((BYTE*)calloc(sizeof(BYTE),
+										  ASAPInfo_MAX_MODULE_LENGTH)), module_len(0)
+	{
+	}
+
+	~ExtendedRead()
+	{
+		if (asap != NULL)
+		{
+			ASAP_Delete(asap);
+			asap = NULL;
+		}
+	}
+
+	ASAP* asap;
+	const ASAPInfo* info;
+	BYTE* module;
+	int module_len = 0;
+};
+
+extern "C" __declspec(dllexport) intptr_t winampGetExtendedRead_openW(const wchar_t* fn, int* size, int* bps, int* nch, int* srate)
+{
+	ExtendedRead* e = new ExtendedRead();
+	if (e)
+	{
+		wchar_t filename[MAX_PATH] = { 0 };
+		int song = extractSongNumber(fn, filename);
+		if (loadModule(filename, e->module, &e->module_len))
+		{
+			AutoCharFn file(filename);
+			if (ASAP_Load(e->asap, file, e->module, e->module_len))
+			{
+				e->info = ASAP_GetInfo(e->asap);
+				if (e->info)
+				{
+					if (song < 0)
+					{
+						song = ASAPInfo_GetDefaultSong(e->info);
+					}
+
+					if (ASAP_PlaySong(e->asap, song, getSongDurationInternal(e->info, song, e->asap)))
+					{
+						ASAP_MutePokeyChannels(e->asap, 0/*/mute_mask/**/);
+
+						*bps = BITS_PER_SAMPLE;
+						*nch = ASAPInfo_GetChannels(e->info);
+						*srate = ASAP_SAMPLE_RATE;
+						*size = -1; // TODO need to get number of samples, etc
+						return reinterpret_cast<intptr_t>(e);
+					}
+				}
+			}
+		}
+
+		delete e;
+	}
+	return 0;
+}
+
+extern "C" __declspec(dllexport) intptr_t winampGetExtendedRead_getData(intptr_t handle, char* dest, size_t len, int* /*killswitch*/)
+{
+	ExtendedRead* e = reinterpret_cast<ExtendedRead*>(handle);
+	return (e ? ASAP_Generate(e->asap, (uint8_t*)dest, (int)len,
+								 ASAPSampleFormat_S16_L_E) : 0);
+}
+
+extern "C" __declspec(dllexport) int winampGetExtendedRead_setTime(intptr_t handle, int time_in_ms)
+{
+	ExtendedRead* e = reinterpret_cast<ExtendedRead*>(handle);
+	return (e ? ASAP_Seek(e->asap, time_in_ms) : 0);
+}
+
+extern "C" __declspec(dllexport) void winampGetExtendedRead_close(intptr_t handle)
+{
+	ExtendedRead* e = reinterpret_cast<ExtendedRead*>(handle);
+	if (e)
+	{
+		delete e;
+	}
+}
+
+extern "C" __declspec(dllexport) int GetSubSongInfo(const wchar_t* filename)
+{
+	wchar_t inside_fn[MAX_PATH] = { 0 };
+	extractSongNumber(filename, inside_fn);
+	int songs = 0;
+	AutoCharFn fn(inside_fn);
+	if (ASAPInfo_IsOurFile(fn))
+	{
+		if (playlist_info == NULL)
+		{
+			playlist_info = ASAPInfo_New();
+		}
+
+		int playlist_module_len = 0;
+		BYTE* playlist_module = (BYTE*)plugin.memmgr->sysMalloc(ASAPInfo_MAX_MODULE_LENGTH);
+		if (loadModule(inside_fn, playlist_module, &playlist_module_len) &&
+			ASAPInfo_Load(playlist_info, fn, playlist_module, playlist_module_len))
+		{
+			songs = ASAPInfo_GetSongs(playlist_info);
+		}
+
+		ASAPInfo_Delete(playlist_info);
+		playlist_info = NULL;
+		plugin.memmgr->sysFree(playlist_module);
+	}
+	else if (isATR(filename))
+	{
+		AATR *disk = AATRStdio_New(fn);
+		if (disk != NULL) {
+			bool found = false;
+			AATRRecursiveLister *lister = AATRRecursiveLister_New();
+			if (lister != NULL) {
+				AATRFileStream *stream = AATRFileStream_New();
+				if (stream != NULL)
+				{
+					AATRRecursiveLister_Open(lister, disk);
+					for (;;)
+					{
+						const char *inside_fn = AATRRecursiveLister_NextFile(lister);
+						if (inside_fn == NULL)
+						{
+							break;
+						}
+
+						if (ASAPInfo_IsOurFile(inside_fn))
+						{
+							if (playlist_info == NULL)
+							{
+								playlist_info = ASAPInfo_New();
+							}
+
+							AATRFileStream_Open(stream, AATRRecursiveLister_GetDirectory(lister));
+							BYTE* playlist_module = (BYTE*)plugin.memmgr->sysMalloc(ASAPInfo_MAX_MODULE_LENGTH);
+							const int playlist_module_len = AATRFileStream_Read(stream, playlist_module, 0,
+																				ASAPInfo_MAX_MODULE_LENGTH);
+							if (ASAPInfo_Load(playlist_info, inside_fn, playlist_module, playlist_module_len))
+							{
+								songs += ASAPInfo_GetSongs(playlist_info);
+							}
+
+							ASAPInfo_Delete(playlist_info);
+							playlist_info = NULL;
+							plugin.memmgr->sysFree(playlist_module);
+						}
+					}
+					AATRFileStream_Delete(stream);
+				}
+				AATRRecursiveLister_Delete(lister);
+			}
+			AATRStdio_Delete(disk);
+		}
+	}
+	return songs;
+}

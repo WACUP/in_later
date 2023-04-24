@@ -63,6 +63,7 @@ const ASTIL *getPlayingASTIL(void);
 #define PLAYING_INFO
 extern bool playing_info;
 void onUpdatePlayingInfo(void);
+LPCTSTR atrFilenameHash(LPCTSTR filename);
 #endif
 
 #ifdef __cplusplus

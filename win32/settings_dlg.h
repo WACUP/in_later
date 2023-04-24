@@ -24,6 +24,8 @@
 #include <windows.h>
 #include <stdbool.h>
 
+#define INI_SECTION  TEXT("in_asap")
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -52,10 +54,11 @@ extern int song_length;
 extern int silence_seconds;
 extern bool play_loops;
 extern int mute_mask;
-bool settingsDialog(HINSTANCE hInstance, HWND hwndParent);
+//bool settingsDialog(HINSTANCE hInstance, HWND hwndParent);
+INT_PTR CALLBACK settingsDialogProc(HWND hDlg, UINT uMsg, WPARAM wParam, LPARAM lParam);
 int getSongDurationInternal(const ASAPInfo *module_info, int song, ASAP *asap);
 #define getSongDuration(module_info, song)  getSongDurationInternal(module_info, song, NULL)
-int playSong(int song);
+int playSong(const int song);
 #endif
 
 #ifdef __cplusplus

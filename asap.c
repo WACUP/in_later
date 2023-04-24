@@ -2133,7 +2133,7 @@ static void ASAP_Destruct(ASAP *self)
 
 ASAP *ASAP_New(void)
 {
-	ASAP *self = (ASAP *) malloc(sizeof(ASAP));
+	ASAP *self = (ASAP *) calloc(1, sizeof(ASAP));
 	if (self != NULL)
 		ASAP_Construct(self);
 	return self;

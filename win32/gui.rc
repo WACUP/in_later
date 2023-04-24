@@ -85,6 +85,7 @@ IDR_TRAYMENU MENU
 #if defined(WINAMP)
 #  define APP_NAME "Winamp"
 #  define INTERNAL_NAME "in_asap"
+#include "winamp\resource.h"
 #elif defined(FOOBAR2000)
 #  define APP_NAME "foobar2000"
 #  define INTERNAL_NAME "foo_asap"
@@ -122,10 +123,11 @@ IDD_SETTINGS DIALOG 0, 0, 184, 216
 STYLE WS_CHILD
 #else
 STYLE DS_3DLOOK | DS_CENTER | DS_MODALFRAME | WS_POPUPWINDOW
-CAPTION "ASAP Settings"
+CAPTION "ASAP Decoder Preferences"
 #endif
 FONT 8, "MS Shell Dlg 2"
 {
+	GROUPBOX "Songs with unspecified length", IDC_STATIC, 8, 4, 168, 64
 	AUTORADIOBUTTON "Play endlessly", IDC_UNLIMITED, 16, 16, 152, 12, BS_AUTORADIOBUTTON | WS_TABSTOP | WS_GROUP
 	AUTORADIOBUTTON "Finish after", IDC_LIMITED, 16, 30, 48, 12
 	EDITTEXT IDC_MINUTES, 68, 30, 16, 12, ES_NUMBER | ES_RIGHT | WS_BORDER | WS_TABSTOP
@@ -135,20 +137,19 @@ FONT 8, "MS Shell Dlg 2"
 	AUTOCHECKBOX "Finish after", IDC_SILENCE, 16, 48, 48, 12
 	EDITTEXT IDC_SILSECONDS, 68, 48, 16, 12, ES_NUMBER | ES_RIGHT | WS_BORDER | WS_TABSTOP
 	LTEXT "seconds of silence", IDC_STATIC, 88, 50, 64, 12
+	GROUPBOX "Loops", IDC_STATIC, 8, 72, 168, 46
 	AUTORADIOBUTTON "Play as above", IDC_LOOPS, 16, 84, 152, 12, BS_AUTORADIOBUTTON | WS_TABSTOP | WS_GROUP
 	AUTORADIOBUTTON "Play just once", IDC_NOLOOPS, 16, 98, 152, 12
+	GROUPBOX "Mute base POKEY", IDC_STATIC, 8, 122, 80, 64
 	AUTOCHECKBOX "Channel 1", IDC_MUTE1, 24, 132, 48, 12
 	AUTOCHECKBOX "Channel 2", IDC_MUTE1 + 1, 24, 144, 48, 12
 	AUTOCHECKBOX "Channel 3", IDC_MUTE1 + 2, 24, 156, 48, 12
 	AUTOCHECKBOX "Channel 4", IDC_MUTE1 + 3, 24, 168, 48, 12
+	GROUPBOX "Mute extra POKEY", IDC_STATIC, 96, 122, 80, 64
 	AUTOCHECKBOX "Channel 1", IDC_MUTE1 + 4, 112, 132, 48, 12
 	AUTOCHECKBOX "Channel 2", IDC_MUTE1 + 5, 112, 144, 48, 12
 	AUTOCHECKBOX "Channel 3", IDC_MUTE1 + 6, 112, 156, 48, 12
 	AUTOCHECKBOX "Channel 4", IDC_MUTE1 + 7, 112, 168, 48, 12
-	GROUPBOX "Songs with unspecified length", IDC_STATIC, 8, 4, 168, 64
-	GROUPBOX "Loops", IDC_STATIC, 8, 72, 168, 46
-	GROUPBOX "Mute base POKEY", IDC_STATIC, 8, 122, 80, 64
-	GROUPBOX "Mute extra POKEY", IDC_STATIC, 96, 122, 80, 64
 #  ifndef FOOBAR2000
 	DEFPUSHBUTTON "OK", IDOK, 38, 194, 50, 14
 	PUSHBUTTON "Cancel", IDCANCEL, 96, 194, 50, 14
@@ -207,7 +208,7 @@ FONT 8, "MS Shell Dlg 2"
 
 #endif /* defined(WASAP) || defined(WINAMP) || defined(FOOBAR2000) || defined(XMPLAY) */
 
-#if defined(WASAP) || defined(WINAMP)
+#if defined(WASAP) //|| defined(WINAMP)
 
 #include <commctrl.h>
 
@@ -227,30 +228,45 @@ FONT 8, "MS Sans Serif"
 #endif /* defined(WASAP) || defined(WINAMP) */
 
 1 VERSIONINFO
-	FILEVERSION ASAPInfo_VERSION_MAJOR, ASAPInfo_VERSION_MINOR, ASAPInfo_VERSION_MICRO, 0
-	PRODUCTVERSION ASAPInfo_VERSION_MAJOR, ASAPInfo_VERSION_MINOR, ASAPInfo_VERSION_MICRO, 0
-	FILEFLAGSMASK 0x3fL
+	FILEVERSION ASAPInfo_VERSION_MAJOR, ASAPInfo_VERSION_MINOR, ASAPInfo_VERSION_MICRO, ASAPInfo_VERSION_PATCH
+	PRODUCTVERSION ASAPInfo_VERSION_MAJOR, ASAPInfo_VERSION_MINOR, ASAPInfo_VERSION_MICRO, ASAPInfo_VERSION_PATCH
+	FILEFLAGSMASK 0x17L
+#ifdef _DEBUG
+	FILEFLAGS 0x1L
+#else
 	FILEFLAGS 0x0L
+#endif
 	FILEOS 0x40004L
 	FILETYPE FILE_TYPE
 	FILESUBTYPE 0x0L
 {
 	BLOCK "StringFileInfo"
 	{
-		BLOCK "040904b0"
+		BLOCK "080904b0"
 		{
-			VALUE "CompanyName", "Piotr Fusik\0"
-			VALUE "FileDescription", FILE_DESCRIPTION "\0"
+			VALUE "CompanyName", "WACUP\0"
+			VALUE "FileDescription", "Input Plug-in\0"
 			VALUE "FileVersion", ASAPInfo_VERSION "\0"
-			VALUE "InternalName", INTERNAL_NAME "\0"
-			VALUE "LegalCopyright", "Copyleft " ASAPInfo_YEARS "\0"
-			VALUE "OriginalFilename", ORIGINAL_FILENAME "\0"
-			VALUE "ProductName", "ASAP\0"
+			VALUE "InternalName", "in_later.dll\0"
+			VALUE "LegalCopyright", "Copyleft " ASAPInfo_YEARS " Piotr Fusik. WACUP related modifications by Darren Owen aka DrO (2023)\0"
+			VALUE "OriginalFilename", "in_later.dll\0"
+			VALUE "ProductName", "ASAP (Another Slight Atari Player) Decoder\0"
 			VALUE "ProductVersion", ASAPInfo_VERSION "\0"
 		}
 	}
 	BLOCK "VarFileInfo"
 	{
-		VALUE "Translation", 0x409, 1200
+		VALUE "Translation", 0x809, 1200
 	}
 }
+
+
+#if defined(WINAMP)
+
+STRINGTABLE
+BEGIN
+IDS_PLUGIN_NAME         "ASAP Decoder v%hs"
+65535                   "{AFE5A171-710D-471d-A927-FF68AA4BA84B}"
+END
+
+#endif
