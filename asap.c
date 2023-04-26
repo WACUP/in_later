@@ -3700,10 +3700,10 @@ static char *ASAPInfo_ParseText(uint8_t const *module, int i, int argEnd)
 {
 	int len = argEnd - i - 2;
 	if (i < 0 || len < 0 || module[i] != '"' || module[argEnd - 1] != '"')
-		return strdup("");
+		return _strdup("");
 	if (len == 3 && module[i + 1] == '<' && module[i + 2] == '?' && module[i + 3] == '>')
-		return strdup("");
-	return CiString_Substring((const char *) module + i + 1, len);
+		return _strdup("");
+	return CiString_Substring((const char *) module + (i + 1), len);
 }
 
 static bool ASAPInfo_HasStringAt(uint8_t const *module, int moduleIndex, const char *s)
@@ -3995,13 +3995,13 @@ bool ASAPInfo_Load(ASAPInfo *self, const char *filename, uint8_t const *module, 
 		ext = ASAPInfo_GetPackedExt(filename);
 	}
 	else {
-		CiString_Assign(&self->filename, strdup(""));
+		CiString_Assign(&self->filename, _strdup(""));
 		if ((ext = ASAPInfo_GuessPackedExt(module, moduleLen)) == -1)
 			return false;
 	}
-	CiString_Assign(&self->author, strdup(""));
-	CiString_Assign(&self->title, strdup(""));
-	CiString_Assign(&self->date, strdup(""));
+	CiString_Assign(&self->author, _strdup(""));
+	CiString_Assign(&self->title, _strdup(""));
+	CiString_Assign(&self->date, _strdup(""));
 	self->channels = 1;
 	self->songs = 1;
 	self->defaultSong = 0;
@@ -4072,7 +4072,7 @@ bool ASAPInfo_SetAuthor(ASAPInfo *self, const char *value)
 {
 	if (!ASAPInfo_CheckValidText(value))
 		return false;
-	CiString_Assign(&self->author, strdup(value));
+	CiString_Assign(&self->author, _strdup(value));
 	return true;
 }
 
@@ -4085,7 +4085,7 @@ bool ASAPInfo_SetTitle(ASAPInfo *self, const char *value)
 {
 	if (!ASAPInfo_CheckValidText(value))
 		return false;
-	CiString_Assign(&self->title, strdup(value));
+	CiString_Assign(&self->title, _strdup(value));
 	return true;
 }
 
@@ -4103,7 +4103,7 @@ bool ASAPInfo_SetDate(ASAPInfo *self, const char *value)
 {
 	if (!ASAPInfo_CheckValidText(value))
 		return false;
-	CiString_Assign(&self->date, strdup(value));
+	CiString_Assign(&self->date, _strdup(value));
 	return true;
 }
 

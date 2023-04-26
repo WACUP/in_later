@@ -138,7 +138,7 @@ static void about(HWND hwndParent)
 					"modifications by Darren Owen aka DrO (%s)\n\nBuild date: %s"
 					"\n\n%hs"), (wchar_t*)plugin.description, ASAPInfo_CREDITS,
 					WACUP_COPYRIGHT, TEXT(__DATE__), ASAPInfo_COPYRIGHT);
-	AboutMessageBox(hwndParent, message, title);
+	AboutMessageBox(hwndParent, message, L"ASAP Decoder");
 }
 
 static int extractSongNumber(const wchar_t *s, wchar_t *filename)
@@ -586,10 +586,11 @@ void GetFileExtensions(void)
 									   L"TMC;TM8\0Theta Music Composer 1.x (*.TMC;*.TM8)\0"
 									   L"TM2\0Theta Music Composer 2.x (*.TM2)\0"
 									   L"FC\0Future Composer (*.FC)\0"
-									   L"ATR\0Atari 8-bit disk image (*.ATR)\0";
+									   L"ATR\0Atari 8-bit Disk Image (*.ATR)\0";
 		loaded_extensions = true;
 	}
 }
+
 const wchar_t wacup_plugin_id[] = { L'w', L'a', L'c', L'u', L'p', L'(', L'i', L'n', L'_', L'l',
 									L'a', L't', L'e', L'r', L'.', L'd', L'l', L'l', L')', 0 };
 In_Module plugin = {
@@ -917,6 +918,7 @@ static int get_metadata(const char* filename, const ASAPInfo* info, int song,
 extern "C" __declspec(dllexport) int winampGetExtendedFileInfoW(const wchar_t *fn, const char *data, wchar_t *dest, int destlen)
 {
 	if (SameStrA(data, "type") ||
+		SameStrA(data, "lossless") ||
 		SameStrA(data, "streammetadata"))
 	{
 		dest[0] = '0';
