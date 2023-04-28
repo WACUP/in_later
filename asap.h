@@ -152,7 +152,7 @@ void ASAPInfo_Delete(ASAPInfo *self);
 /**
  * ASAP version as a string.
  */
-#define ASAPInfo_VERSION "5.3.0.2"
+#define ASAPInfo_VERSION "5.3.0.3"
 
 /**
  * Years ASAP was created in.

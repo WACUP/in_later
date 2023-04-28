@@ -491,7 +491,9 @@ static int play(const in_char *fn)
 		const int maxlatency = plugin.outMod->Open(ASAP_SAMPLE_RATE, channels, BITS_PER_SAMPLE, -1, -1);
 		if (maxlatency < 0)
 			return 1;
-		plugin.SetInfo(1411/*/BITS_PER_SAMPLE/**/, ASAP_SAMPLE_RATE / 1000, channels, 1);
+
+		const int bitrate = (channels * ASAP_SAMPLE_RATE * BITS_PER_SAMPLE);
+		plugin.SetInfo(bitrate / 1000, ASAP_SAMPLE_RATE / 1000, channels, 1);
 		plugin.SAVSAInit(maxlatency, ASAP_SAMPLE_RATE);
 		// the order of VSASetInfo's arguments in in2.h is wrong!
 		// http://forums.winamp.com/showthread.php?postid=1841035
@@ -845,11 +847,6 @@ static int get_metadata(const char* filename, const ASAPInfo* info, int song,
 		}
 		return 1;
 	}
-	else if (SameStrA(data, "bitrate"))
-	{
-		StringCchCopy(dest, destlen, L"1411");
-		return 1;
-	}
 	else if (SameStrA(data, "genre"))
 	{
 		StringCchCopy(dest, destlen, L"Video Game Music");
@@ -911,6 +908,20 @@ static int get_metadata(const char* filename, const ASAPInfo* info, int song,
 			ASTIL_Delete(astil);
 			return 1;
 		}
+	}
+	else if (SameStrA(data, "bitrate"))
+	{
+		const int br = (ASAPInfo_GetChannels(info) * ASAP_SAMPLE_RATE * BITS_PER_SAMPLE);
+		if (br > 0)
+		{
+			I2WStr((br / 1000), dest, destlen);
+			return 1;
+		}
+	}
+	else if (SameStrA(data, "samplerate"))
+	{
+		I2WStr(ASAP_SAMPLE_RATE, dest, destlen);
+		return 1;
 	}
 	return 0;
 }
