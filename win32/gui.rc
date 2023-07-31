@@ -125,7 +125,7 @@ STYLE WS_CHILD
 STYLE DS_3DLOOK | DS_CENTER | DS_MODALFRAME | WS_POPUPWINDOW
 CAPTION "ASAP Decoder Preferences"
 #endif
-FONT 8, "MS Shell Dlg 2"
+FONT 8, "MS Shell Dlg"
 {
 	GROUPBOX "Songs with unspecified length", IDC_STATIC, 8, 4, 168, 64
 	AUTORADIOBUTTON "Play endlessly", IDC_UNLIMITED, 16, 16, 152, 12, BS_AUTORADIOBUTTON | WS_TABSTOP | WS_GROUP
@@ -173,7 +173,7 @@ FONT 8, "MS Shell Dlg 2"
 IDD_INFO DIALOG 0, 0, 54 + INFO_W, 214 + INFO_Y
 STYLE DS_3DLOOK | DS_CENTER | DS_MODALFRAME | WS_POPUPWINDOW | WS_VISIBLE
 CAPTION "File information"
-FONT 8, "MS Shell Dlg 2"
+FONT 8, "MS Shell Dlg"
 {
 #ifdef PLAYING_INFO
 	AUTOCHECKBOX "Show information about the currently &playing file", IDC_PLAYING, 46, 8, 284, 12
@@ -215,7 +215,7 @@ FONT 8, "MS Shell Dlg 2"
 IDD_PROGRESS DIALOG 0, 0, 160, 48
 STYLE DS_3DLOOK | DS_CENTER | DS_MODALFRAME | WS_POPUP | WS_VISIBLE
 CAPTION "Please wait"
-FONT 8, "MS Sans Serif"
+FONT 8, "MS Shell Dlg"
 {
 #ifdef WASAP
 	CTEXT "Writing WAV file", IDC_STATIC, 8, 8, 144, 12

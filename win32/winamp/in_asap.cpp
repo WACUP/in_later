@@ -394,10 +394,18 @@ static int infoBox(const in_char *file, HWND hwndParent)
 
 static int isOurFile(const in_char *fn)
 {
-	wchar_t filename[MAX_PATH] = { 0 };
+	if (!IsAnUrl(fn))
+	{
+		wchar_t filename[FILENAME_SIZE] = { 0 };
 	extractSongNumber(fn, filename);
 	LPCWSTR ext = FindPathExtension(filename);
-	return (ext ? ASAPInfo_IsOurExt(AutoChar(ext)) : 0);
+		if (ext)
+		{
+			AutoChar ext8(ext);
+			return ASAPInfo_IsOurExt(ext8);
+		}
+	}
+	return 0;
 }
 
 static DWORD WINAPI playThread(LPVOID dummy)

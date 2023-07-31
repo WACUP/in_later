@@ -377,7 +377,7 @@ static void toggleCalendar(HWND hDlg)
 		ShowWindow(monthcal, SW_HIDE);
 	else {
 		RECT rc;
-		GetWindowRect(GetDlgItem(hDlg, IDC_PICKDATE), &rc);
+		GetDlgItemRect(hDlg, IDC_PICKDATE, &rc);
 		int x = rc.left;
 		int y = rc.bottom;
 		MonthCal_GetMinReqRect(monthcal, &rc);
