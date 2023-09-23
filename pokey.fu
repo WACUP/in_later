@@ -1,6 +1,6 @@
-// pokey.ci - POKEY chip emulator
+// pokey.fu - POKEY chip emulator
 //
-// Copyright (C) 2010-2021  Piotr Fusik
+// Copyright (C) 2010-2023  Piotr Fusik
 //
 // This file is part of ASAP (Another Slight Atari Player),
 // see http://asap.sourceforge.net
@@ -39,10 +39,9 @@ class PokeyChannel
 	internal int TimerCycle;
 
 	// Is channel muted?
-	const int MuteFrequency = 1;
-	const int MuteInit = 2;
-	const int MuteUser = 4;
-	const int MuteSerialInput = 8;
+	const int MuteInit = 1;
+	const int MuteUser = 2;
+	const int MuteSerialInput = 4;
 	internal int Mute;
 
 	int Out;
@@ -55,7 +54,7 @@ class PokeyChannel
 		PeriodCycles = 28;
 		TickCycle = Pokey.NeverCycle;
 		TimerCycle = Pokey.NeverCycle;
-		Mute = MuteFrequency;
+		Mute = 0;
 		Out = 0;
 		Delta = 0;
 	}
@@ -118,28 +117,20 @@ class PokeyChannel
 		}
 	}
 
-	internal void MuteUltrasound!(int cycle)
-	{
-		const int UltrasoundCycles = 112;
-		SetMute(PeriodCycles <= UltrasoundCycles && (Audc & 0xb0) == 0xa0, MuteFrequency, cycle);
-	}
-
 	internal void SetAudc!(Pokey! pokey, PokeyPair pokeys, int data, int cycle)
 	{
 		if (Audc == data)
 			return;
 		pokey.GenerateUntilCycle(pokeys, cycle);
 		Audc = data;
-		const int DeltaShiftPOKEY = 20;
 		if ((data & 0x10) != 0) {
-			data = (data & 0xf) << DeltaShiftPOKEY;
+			data &= 0xf;
 			if ((Mute & MuteUser) == 0)
 				pokey.AddDelta(pokeys, cycle, Delta > 0 ? data - Delta : data);
 			Delta = data;
 		}
 		else {
-			data = (data & 0xf) << DeltaShiftPOKEY;
-			MuteUltrasound(cycle);
+			data &= 0xf;
 			if (Delta > 0) {
 				if ((Mute & MuteUser) == 0)
 					pokey.AddDelta(pokeys, cycle, data - Delta);
@@ -170,27 +161,73 @@ class Pokey
 	internal int PolyIndex;
 	const int NeverCycle = 0x800000;
 
-	// Sample rates from 32000 to 50000 should be fine,
-	// but weren't tested - please report your experience.
-	// For lower rates, you'll need to add a low-pass filter.
-	// The DC filter in PokeyPair.Generate should also be adjusted
-	// whenever the sample rate considerably differs from 44100.
-	const int SampleRate = 44100;
-	// Enough for one PAL frame == 312 * 114 cycles + some margin,
-	// as we emulate whole 6502 instructions and interpolate samples.
-	int[SampleRate * 312 * 114 / 1773447 + 4] DeltaBuffer;
+#if OPENCL
+	const int DeltaBufferLength = ASAP.SampleRate * 312 * 114 / 1773447 + UnitDeltaLength + 2;
+	int[DeltaBufferLength] DeltaBuffer;
+#else
+	int DeltaBufferLength;
+	int[]#? DeltaBuffer;
+#endif
+	0 .. 60 SumDACInputs;
+	int SumDACOutputs;
 
+	// POKEY DACs are characterized mostly by two types of nonlinearities:
+	// the imperfect scaling between channels of transistors implementing
+	// individual DAC bits, and the output level compression resulting
+	// from the operating point set by the voltage and resistor connected
+	// to the AUDIO pin. This array, based on measurements of AMI-produced
+	// chips, approximates these nonlinearities well enough for my taste.
+	// The actual characteristics vary quite significantly between chips.
+	const short[] CompressedSums = {
+		0, 35, 73, 111, 149, 189, 228, 266, 304, 342, 379, 415, 450, 484, 516, 546,
+		575, 602, 628, 652, 674, 695, 715, 733, 750, 766, 782, 796, 809, 822, 834, 846,
+		856, 867, 876, 886, 894, 903, 911, 918, 926, 933, 939, 946, 952, 958, 963, 969,
+		974, 979, 984, 988, 993, 997, 1001, 1005, 1009, 1013, 1016, 1019, 1023
+	};
+
+	// To avoid the cost of computing and accumulating sinc function
+	// each time at exact time points, we use precalculated sinc-interpolated
+	// unit delta function (derivative of step function), sampled at a finite
+	// number of different phase offsets within output sample interval.
+
+	// The following parameters control quality of sinc interpolation.
+	// The default values are fine for sample rates down to 44100.
+	// For lower sample rates you may want to increase them
+	// to reduce aliasing and sinc approximation artifacts.
+	// For best performance, make sure all lookup tables fit in L1$/L2$.
+
+	// (1 << InterpolationShift) is the number of pre-calculated deltas:
+	// Useful range is 6..DeltaResolution.
+	internal const int InterpolationShift = 10;
+
+	// Length of one pre-sampled sinc-interpolated unit delta. Must be >=3.
+	internal const int UnitDeltaLength = 32;
+
+	// (1 << DeltaResolution) is the amplitude of unit delta.
+	internal const int DeltaResolution = 14;
+
+	int IirRate;
 	int IirAcc;
+	int Trailing;
 
 	internal void StartFrame!()
 	{
-		DeltaBuffer.Fill(0);
+		DeltaBuffer.CopyTo(Trailing, DeltaBuffer, 0, DeltaBufferLength - Trailing);
+		DeltaBuffer.Fill(0, DeltaBufferLength - Trailing, Trailing);
 	}
 
-	internal void Initialize!()
+	internal void Initialize!(int sampleRate = 44100)
 	{
-		for (int i = 0; i < 4; i++)
-			Channels[i].Initialize();
+#if !OPENCL
+		long sr = sampleRate;
+		// Enough for one PAL frame == 312 * 114 cycles + some margin,
+		// as we emulate whole 6502 instructions and interpolate samples.
+		DeltaBufferLength = sr * 312 * 114 / 1773447 + UnitDeltaLength + 2;
+		DeltaBuffer = new int[DeltaBufferLength];
+#endif
+		Trailing = DeltaBufferLength;
+		foreach (PokeyChannel! c in Channels)
+			c.Initialize();
 		Audctl = 0;
 		Skctl = 3;
 		Irqst = 0xff;
@@ -200,19 +237,30 @@ class Pokey
 		ReloadCycles3 = 28;
 		PolyIndex = 15 * 31 * 131071;
 		IirAcc = 0;
+		IirRate = 44100 * 6 / sampleRate;
+		SumDACInputs = 0;
 		StartFrame();
 	}
 
 	internal void AddDelta!(PokeyPair pokeys, int cycle, int delta)
 	{
+		const int DeltaShiftPOKEY = 16;
+		SumDACInputs += delta;
+		int newOutput = CompressedSums[SumDACInputs] << DeltaShiftPOKEY;
+		AddExternalDelta(pokeys, cycle, newOutput - SumDACOutputs);
+		SumDACOutputs = newOutput;
+	}
+
+	internal void AddExternalDelta!(PokeyPair pokeys, int cycle, int delta)
+	{
+		if (delta == 0)
+			return;
 		int i = cycle * pokeys.SampleFactor + pokeys.SampleOffset;
-		// too large value reduces the resolution of delta (if bigger than DeltaShiftCOVOX, DeltaShiftPOKEY)
-		// too small value reduces the resolution of interpolation
-		const int interpolationShift = 16;
-		int delta2 = (delta >> interpolationShift) * (i >> (PokeyPair.SampleFactorShift - interpolationShift) & ((1 << interpolationShift) - 1));
+		int fraction = i >> (PokeyPair.SampleFactorShift - InterpolationShift) & ((1 << InterpolationShift) - 1);
 		i >>= PokeyPair.SampleFactorShift;
-		DeltaBuffer[i] += delta - delta2;
-		DeltaBuffer[i + 1] += delta2;
+		delta >>= DeltaResolution;
+		for (int j = 0; j < UnitDeltaLength; j++)
+			DeltaBuffer[i + j] += delta * pokeys.SincLookup[fraction][j];
 	}
 
 	/// Fills `DeltaBuffer` up to `cycleLimit` basing on current Audf/Audc/Audctl values.
@@ -220,8 +268,8 @@ class Pokey
 	{
 		for (;;) {
 			int cycle = cycleLimit;
-			for (int i = 0; i < 4; i++) {
-				int tickCycle = Channels[i].TickCycle;
+			foreach (PokeyChannel c in Channels) {
+				int tickCycle = c.TickCycle;
 				if (cycle > tickCycle)
 					cycle = tickCycle;
 			}
@@ -262,17 +310,17 @@ class Pokey
 		int m = (Audctl & 0x80) != 0 ? 15 * 31 * 511 : 15 * 31 * 131071;
 		if (PolyIndex >= 2 * m)
 			PolyIndex -= m;
-		for (int i = 0; i < 4; i++) {
-			int tickCycle = Channels[i].TickCycle;
+		foreach (PokeyChannel! c in Channels) {
+			int tickCycle = c.TickCycle;
 			if (tickCycle != NeverCycle)
-				Channels[i].TickCycle = tickCycle - cycle;
+				c.TickCycle = tickCycle - cycle;
 		}
 	}
 
 	internal bool IsSilent()
 	{
-		for (int i = 0; i < 4; i++)
-			if ((Channels[i].Audc & 0xf) != 0)
+		foreach (PokeyChannel c in Channels)
+			if ((c.Audc & 0xf) != 0)
 				return false;
 		return true;
 	}
@@ -309,7 +357,6 @@ class Pokey
 			case 0x10:
 				Channels[1].PeriodCycles = DivCycles * (data + (Channels[1].Audf << 8) + 1);
 				ReloadCycles1 = DivCycles * (data + 1);
-				Channels[1].MuteUltrasound(cycle);
 				break;
 			case 0x40:
 				Channels[0].PeriodCycles = data + 4;
@@ -317,12 +364,10 @@ class Pokey
 			case 0x50:
 				Channels[1].PeriodCycles = data + (Channels[1].Audf << 8) + 7;
 				ReloadCycles1 = data + 4;
-				Channels[1].MuteUltrasound(cycle);
 				break;
 			default:
 				assert false;
 			}
-			Channels[0].MuteUltrasound(cycle);
 			break;
 		case 0x01:
 			Channels[0].SetAudc(this, pokeys, data, cycle);
@@ -346,7 +391,6 @@ class Pokey
 			default:
 				assert false;
 			}
-			Channels[1].MuteUltrasound(cycle);
 			break;
 		case 0x03:
 			Channels[1].SetAudc(this, pokeys, data, cycle);
@@ -363,7 +407,6 @@ class Pokey
 			case 0x08:
 				Channels[3].PeriodCycles = DivCycles * (data + (Channels[3].Audf << 8) + 1);
 				ReloadCycles3 = DivCycles * (data + 1);
-				Channels[3].MuteUltrasound(cycle);
 				break;
 			case 0x20:
 				Channels[2].PeriodCycles = data + 4;
@@ -371,12 +414,10 @@ class Pokey
 			case 0x28:
 				Channels[3].PeriodCycles = data + (Channels[3].Audf << 8) + 7;
 				ReloadCycles3 = data + 4;
-				Channels[3].MuteUltrasound(cycle);
 				break;
 			default:
 				assert false;
 			}
-			Channels[2].MuteUltrasound(cycle);
 			break;
 		case 0x05:
 			Channels[2].SetAudc(this, pokeys, data, cycle);
@@ -400,7 +441,6 @@ class Pokey
 			default:
 				assert false;
 			}
-			Channels[3].MuteUltrasound(cycle);
 			break;
 		case 0x07:
 			Channels[3].SetAudc(this, pokeys, data, cycle);
@@ -434,8 +474,6 @@ class Pokey
 			default:
 				assert false;
 			}
-			Channels[0].MuteUltrasound(cycle);
-			Channels[1].MuteUltrasound(cycle);
 			switch (data & 0x28) {
 			case 0x00:
 				Channels[2].PeriodCycles = DivCycles * (Channels[2].Audf + 1);
@@ -458,14 +496,12 @@ class Pokey
 			default:
 				assert false;
 			}
-			Channels[2].MuteUltrasound(cycle);
-			Channels[3].MuteUltrasound(cycle);
 			InitMute(cycle);
 			break;
 		case 0x09:
 			// TODO: ReloadCycles, Out
-			for (int i = 0; i < 4; i++)
-				Channels[i].DoStimer(cycle);
+			foreach (PokeyChannel! c in Channels)
+				c.DoStimer(cycle);
 			break;
 		case 0x0e:
 			Irqst |= data ^ 0xff;
@@ -523,7 +559,7 @@ class Pokey
 
 	internal int StoreSample!(byte[]! buffer, int bufferOffset, int i, ASAPSampleFormat format)
 	{
-		IirAcc += DeltaBuffer[i] - (IirAcc * 3 >> 10);
+		IirAcc += DeltaBuffer[i] - (IirRate * IirAcc >> 11);
 		int sample = IirAcc >> 11;
 		if (sample < -32767)
 			sample = -32767;
@@ -547,7 +583,7 @@ class Pokey
 
 	internal void AccumulateTrailing!(int i)
 	{
-		IirAcc += DeltaBuffer[i] + DeltaBuffer[i + 1];
+		Trailing = i;
 	}
 }
 
@@ -562,10 +598,15 @@ class PokeyPair
 	internal Pokey() BasePokey;
 	internal Pokey() ExtraPokey;
 
+	internal int SampleRate;
+	// Band-limited unit delta, sampled around (1 << InterpolationShift)
+	// different fractional positions between output samples.
+	internal short[1 << Pokey.InterpolationShift][Pokey.UnitDeltaLength] SincLookup;
+
 	// DeltaBuffer.Length << SampleFactorShift shouldn't overflow int.
-	// SampleFactorShift could be 21, but that wouldn't improve
+	// SampleFactorShift could be 19, but that wouldn't improve
 	// accuracy because SampleFactor would be even.
-	const int SampleFactorShift = 20;
+	const int SampleFactorShift = 18;
 	internal int SampleFactor;
 	internal int SampleOffset;
 
@@ -574,6 +615,8 @@ class PokeyPair
 
 #if APOKEYSND
 	public
+#else
+	internal
 #endif
 	PokeyPair()
 	{
@@ -587,25 +630,45 @@ class PokeyPair
 			reg = (((reg >> 5 ^ reg) & 0xff) << 9) + (reg >> 8);
 			Poly17Lookup[i] = reg >> 1 & 0xff;
 		}
+		for (int i = 0; i < 1 << Pokey.InterpolationShift; i++) {
+			double sincSum = 0;
+			double leftSum = 0;
+			double norm = 0;
+			double[Pokey.UnitDeltaLength - 1] sinc;
+			for (int j = -Pokey.UnitDeltaLength; j < Pokey.UnitDeltaLength; j++) {
+				if (j == -Pokey.UnitDeltaLength / 2)
+					leftSum = sincSum;
+				else if (j == Pokey.UnitDeltaLength / 2 - 1)
+					norm = sincSum;
+				double x = Math.PI / (1 << Pokey.InterpolationShift) * ((j << Pokey.InterpolationShift) - i);
+				double s = x == 0 ? 1 : Math.Sin(x) / x;
+				if (j >= -Pokey.UnitDeltaLength / 2 && j < Pokey.UnitDeltaLength / 2 - 1)
+					sinc[Pokey.UnitDeltaLength / 2 + j] = s;
+				sincSum += s;
+			}
+			norm = (1 << Pokey.DeltaResolution) / (norm + (1 - sincSum) * 0.5);
+			SincLookup[i][0] = Math.Round((leftSum + (1 - sincSum) * 0.5) * norm);
+			for (int j = 1; j < Pokey.UnitDeltaLength; j++)
+				SincLookup[i][j] = Math.Round(sinc[j - 1] * norm);
+		}
 	}
 
-	// What we really need here is:
 	// return ((Pokey.SampleRate << SampleFactorShift) + (clock >> 1)) / clock;
-	// unfortunately cito provides only 32-bit arithmetic for the moment,
-	// so I shift by 5 to avoid overflow.
-	static int GetSampleFactor(int clock)
-		=> ((Pokey.SampleRate << SampleFactorShift - 5) + (clock >> 6)) / (clock >> 5);
+	// Shifted by 5 to fit in 32-bit arithmetic.
+	int GetSampleFactor(int clock)
+		=> ((SampleRate << SampleFactorShift - 5) + (clock >> 6)) / (clock >> 5);
 
 #if APOKEYSND
 	public
 #else
 	internal
 #endif
-	void Initialize!(bool ntsc, bool stereo)
+	void Initialize!(bool ntsc, bool stereo, int sampleRate = 44100)
 	{
 		ExtraPokeyMask = stereo ? 0x10 : 0;
-		BasePokey.Initialize();
-		ExtraPokey.Initialize();
+		SampleRate = sampleRate;
+		BasePokey.Initialize(sampleRate);
+		ExtraPokey.Initialize(sampleRate);
 		SampleFactor = ntsc ? GetSampleFactor(1789772) : GetSampleFactor(1773447);
 		SampleOffset = 0;
 		ReadySamplesStart = 0;

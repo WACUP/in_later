@@ -1,7 +1,23 @@
 ﻿<page title="News">
+	<release version="6.0.0" date="2023-09-21">
+		<ul title="POKEY emulation improvements by Adrian Matoga">
+			<li><a href="https://en.wikipedia.org/wiki/Beat_(acoustics)">Beats</a> using ultrasounds.</li>
+			<li>POKEY audio nonlinearities.</li>
+			<li>Configurable sample rate.</li>
+		</ul>
+		<ul title="Android">
+			<li>Share song links which can be open in ASAP or a web browser.</li>
+			<li>Authors and dates shown in gray on the list.</li>
+		</ul>
+		<ul title="64-bit Windows plugins">
+			<li>64-bit BASS/AIMP plugin.</li>
+			<li>64-bit foobar2000 plugin included in the <code>*-win64.msi</code> installer.</li>
+		</ul>
+	</release>
+
 	<release version="5.3.0" date="2023-02-08">
 		<ul>
-			<li>Fix SAP author nicknames not shown if their real name is unknown.</li>
+			<li>Fixed SAP author nicknames not shown if their real name is unknown.</li>
 			<li>NTSC/PAL toggle in the File Information window and asapconv.</li>
 			<li>Support for 64-bit foobar2000 2.0. Currently in beta.</li>
 			<li>Reworked the JavaScript player. Added a seek bar.</li>

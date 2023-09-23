@@ -940,8 +940,8 @@ extern "C" __declspec(dllexport) int winampGetExtendedFileInfoW(const wchar_t *f
 		SameStrA(data, "lossless") ||
 		SameStrA(data, "streammetadata"))
 	{
-		dest[0] = '0';
-		dest[1] = 0;
+		dest[0] = L'0';
+		dest[1] = L'\0';
 		return 1;
 	}
 	else if (SameStrA(data, "streamgenre") ||

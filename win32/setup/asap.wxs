@@ -166,27 +166,12 @@
 		</UI>
 		<UIRef Id="WixUI_Common" />
 
-		<?if $(sys.BUILDARCH) = x86?>
-		<Property Id="TSVN.VER">
-			<RegistrySearch Id="tsvn.ver" Root="HKCU" Key="SOFTWARE\TortoiseSVN" Name="CurrentVersion" Type="raw" />
-		</Property>
-		<Property Id="TGIT.VER">
-			<RegistrySearch Id="tgit.ver" Root="HKCU" Key="SOFTWARE\TortoiseGit" Name="CurrentVersion" Type="raw" />
-		</Property>
 		<Property Id="FOO.DIR">
 			<RegistrySearch Id="foo.installdir" Root="HKLM" Key="SOFTWARE\foobar2000" Name="InstallDir" Type="directory" />
 		</Property>
 		<Property Id="FOO.EXE">
 			<RegistrySearch Id="foo.exe" Root="HKLM" Key="SOFTWARE\foobar2000" Name="InstallDir" Type="directory">
 				<FileSearch Name="foobar2000.exe" />
-			</RegistrySearch>
-		</Property>
-		<Property Id="XMPLAY.DIR">
-			<RegistrySearch Id="xmplay.installdir" Root="HKCR" Key="XMPlay\shell\Open\command" Type="file" />
-		</Property>
-		<Property Id="XMPLAY.EXE">
-			<RegistrySearch Id="xmplay.exe" Root="HKCR" Key="XMPlay\shell\Open\command" Type="file">
-				<FileSearch Name="xmplay.exe" />
 			</RegistrySearch>
 		</Property>
 		<Property Id="AIMP.DIR">
@@ -197,6 +182,30 @@
 				<FileSearch Name="AIMP.exe" />
 			</DirectorySearch>
 		</Property>
+		<Property Id="VLC.DIR">
+			<RegistrySearch Id="vlc.installdir" Root="HKLM" Key="SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\VLC media player" Name="InstallLocation" Type="directory" />
+		</Property>
+		<Property Id="VLC.EXE">
+			<RegistrySearch Id="vlc.exe" Root="HKLM" Key="SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\VLC media player" Name="InstallLocation" Type="directory">
+				<FileSearch Name="vlc.exe" />
+			</RegistrySearch>
+		</Property>
+
+		<?if $(sys.BUILDARCH) = x86?>
+		<Property Id="TSVN.VER">
+			<RegistrySearch Id="tsvn.ver" Root="HKCU" Key="SOFTWARE\TortoiseSVN" Name="CurrentVersion" Type="raw" />
+		</Property>
+		<Property Id="TGIT.VER">
+			<RegistrySearch Id="tgit.ver" Root="HKCU" Key="SOFTWARE\TortoiseGit" Name="CurrentVersion" Type="raw" />
+		</Property>
+		<Property Id="XMPLAY.DIR">
+			<RegistrySearch Id="xmplay.installdir" Root="HKCR" Key="XMPlay\shell\Open\command" Type="file" />
+		</Property>
+		<Property Id="XMPLAY.EXE">
+			<RegistrySearch Id="xmplay.exe" Root="HKCR" Key="XMPlay\shell\Open\command" Type="file">
+				<FileSearch Name="xmplay.exe" />
+			</RegistrySearch>
+		</Property>
 		<Property Id="WINAMP.DIR">
 			<RegistrySearch Id="winamp.installdir" Root="HKCU" Key="SOFTWARE\Winamp" Type="directory" />
 		</Property>
@@ -206,14 +215,6 @@
 			</RegistrySearch>
 		</Property>
 		<?endif?>
-		<Property Id="VLC.DIR">
-			<RegistrySearch Id="vlc.installdir" Root="HKLM" Key="SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\VLC media player" Name="InstallLocation" Type="directory" />
-		</Property>
-		<Property Id="VLC.EXE">
-			<RegistrySearch Id="vlc.exe" Root="HKLM" Key="SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\VLC media player" Name="InstallLocation" Type="directory">
-				<FileSearch Name="vlc.exe" />
-			</RegistrySearch>
-		</Property>
 
 		<Directory Id="TARGETDIR" Name="SourceDir">
 			<Directory Id="$(var.PROGRAM_FILES_FOLDER)">
@@ -288,6 +289,43 @@
 					<?endif?>
 				</Directory>
 
+				<Directory Id="FOO.DIR" Name="foobar2000">
+					<Directory Id="FOOCOMP.DIR" Name="components">
+						<Component Id="foo_asap.dll">
+							<File Name="foo_asap.dll" Source="$(var.SRC_DIR)foo_asap.dll" Checksum="yes" KeyPath="yes" />
+						</Component>
+						<Component Id="foo_asap.ext">
+							<RegistryValue Root="HKCR" Key="asap.file" Name="foo_asap" Type="integer" Value="1" KeyPath="yes" />
+							<?foreach EXT in $(var.NATIVE_EXTS)?>
+								<ProgId Id="foobar2000.$(var.EXT)">
+									<Extension Id="$(var.EXT)">
+										<Verb Id="open" TargetProperty="FOO.EXE" Argument='"%1"' />
+									</Extension>
+								</ProgId>
+							<?endforeach?>
+						</Component>
+					</Directory>
+				</Directory>
+				<Directory Id="AIMP.DIR" Name="AIMP">
+					<Directory Id="AIMPPLUG.DIR" Name="Plugins">
+						<Directory Id="AIMPASAP.DIR" Name="bass_asap">
+							<Component Id="bass_asap.dll">
+								<File Name="bass_asap.dll" Source="$(var.SRC_DIR)bass_asap.dll" Checksum="yes" KeyPath="yes" />
+							</Component>
+							<Component Id="aimp_asap.ext">
+								<RegistryValue Root="HKCR" Key="asap.file" Name="aimp" Type="integer" Value="1" KeyPath="yes" />
+								<ProgId Id="AIMP.ASAP">
+									<Extension Id="sap">
+										<Verb Id="open" Command="Open with AIMP" TargetProperty="AIMP.EXE" Argument='"%1"' />
+									</Extension>
+									<?foreach EXT in $(var.NATIVE_EXTS)?>
+										<Extension Id="$(var.EXT)" />
+									<?endforeach?>
+								</ProgId>
+							</Component>
+						</Directory>
+					</Directory>
+				</Directory>
 				<Directory Id="VIDEOLAN.DIR" Name="VideoLAN">
 					<Directory Id="VLC.DIR" Name="VLC">
 						<Directory Id="VLCPLUGINS.DIR" Name="plugins">
@@ -311,23 +349,6 @@
 				</Directory>
 
 				<?if $(sys.BUILDARCH) = x86?>
-				<Directory Id="FOO.DIR" Name="foobar2000">
-					<Directory Id="FOOCOMP.DIR" Name="components">
-						<Component Id="foo_asap.dll">
-							<File Name="foo_asap.dll" Source="foo_asap.dll" Checksum="yes" KeyPath="yes" />
-						</Component>
-						<Component Id="foo_asap.ext">
-							<RegistryValue Root="HKCR" Key="asap.file" Name="foo_asap" Type="integer" Value="1" KeyPath="yes" />
-							<?foreach EXT in $(var.NATIVE_EXTS)?>
-								<ProgId Id="foobar2000.$(var.EXT)">
-									<Extension Id="$(var.EXT)">
-										<Verb Id="open" TargetProperty="FOO.EXE" Argument='"%1"' />
-									</Extension>
-								</ProgId>
-							<?endforeach?>
-						</Component>
-					</Directory>
-				</Directory>
 				<Directory Id="XMPLAY.DIR" Name="XMPlay">
 					<Component Id="xmp_asap.dll">
 						<File Name="xmp-asap.dll" Source="xmp-asap.dll" Checksum="yes" KeyPath="yes" />
@@ -343,26 +364,6 @@
 							<?endforeach?>
 						</ProgId>
 					</Component>
-				</Directory>
-				<Directory Id="AIMP.DIR" Name="AIMP">
-					<Directory Id="AIMPPLUG.DIR" Name="Plugins">
-						<Directory Id="AIMPASAP.DIR" Name="bass_asap">
-							<Component Id="bass_asap.dll">
-								<File Name="bass_asap.dll" Source="bass_asap.dll" Checksum="yes" KeyPath="yes" />
-							</Component>
-							<Component Id="aimp_asap.ext">
-								<RegistryValue Root="HKCR" Key="asap.file" Name="aimp" Type="integer" Value="1" KeyPath="yes" />
-								<ProgId Id="AIMP.ASAP">
-									<Extension Id="sap">
-										<Verb Id="open" Command="Open with AIMP" TargetProperty="AIMP.EXE" Argument='"%1"' />
-									</Extension>
-									<?foreach EXT in $(var.NATIVE_EXTS)?>
-										<Extension Id="$(var.EXT)" />
-									<?endforeach?>
-								</ProgId>
-							</Component>
-						</Directory>
-					</Directory>
 				</Directory>
 				<Directory Id="WINAMP.DIR" Name="Winamp">
 					<Directory Id="WINAMPPLUG.DIR" Name="Plugins">
@@ -406,8 +407,7 @@
 			<?endif?>
 		</Directory>
 
-		<?if $(sys.BUILDARCH) = x86?>
-		<Feature Id="foo_asap" Title="foobar2000 plugin" Level="9" ConfigurableDirectory="FOOCOMP.DIR" Description="Plugin for foobar2000." AllowAdvertise="no">
+		<Feature Id="foo_asap" Title="foobar2000 plugin" Level="9" ConfigurableDirectory="FOOCOMP.DIR" Description="Plugin for $(var.PLATFORM_BITS) foobar2000." AllowAdvertise="no">
 			<Condition Level="1">FOO.DIR</Condition>
 			<ComponentRef Id="foo_asap.dll" />
 			<Feature Id="foo_asap.ext" Title="Associate file types" Level="0" Description="$(var.DOUBLECLICK) foobar2000." AllowAdvertise="no">
@@ -415,20 +415,22 @@
 				<ComponentRef Id="foo_asap.ext" />
 			</Feature>
 		</Feature>
+		<Feature Id="aimp_asap" Title="AIMP $(var.PLATFORM_BITS) plugin" Level="9" ConfigurableDirectory="AIMPASAP.DIR" Description="Plugin for $(var.PLATFORM_BITS) AIMP." AllowAdvertise="no">
+			<Condition Level="1">AIMP.DIR</Condition>
+			<ComponentRef Id="bass_asap.dll" />
+			<Feature Id="aimp_asap.ext" Title="Associate file types" Level="0" Description="$(var.DOUBLECLICK) AIMP." AllowAdvertise="no">
+				<Condition Level="9">AIMP.EXE</Condition>
+				<ComponentRef Id="aimp_asap.ext" />
+			</Feature>
+		</Feature>
+
+		<?if $(sys.BUILDARCH) = x86?>
 		<Feature Id="xmp_asap" Title="XMPlay plugin" Level="9" ConfigurableDirectory="XMPLAY.DIR" Description="Plugin for XMPlay." AllowAdvertise="no">
 			<Condition Level="1">XMPLAY.DIR</Condition>
 			<ComponentRef Id="xmp_asap.dll" />
 			<Feature Id="xmp_asap.ext" Title="Associate file types" Level="0" Description="$(var.DOUBLECLICK) XMPlay." AllowAdvertise="no">
 				<Condition Level="9">XMPLAY.EXE</Condition>
 				<ComponentRef Id="xmp_asap.ext" />
-			</Feature>
-		</Feature>
-		<Feature Id="aimp_asap" Title="AIMP plugin" Level="9" ConfigurableDirectory="AIMPASAP.DIR" Description="Plugin for AIMP." AllowAdvertise="no">
-			<Condition Level="1">AIMP.DIR</Condition>
-			<ComponentRef Id="bass_asap.dll" />
-			<Feature Id="aimp_asap.ext" Title="Associate file types" Level="0" Description="$(var.DOUBLECLICK) AIMP." AllowAdvertise="no">
-				<Condition Level="9">AIMP.EXE</Condition>
-				<ComponentRef Id="aimp_asap.ext" />
 			</Feature>
 		</Feature>
 		<Feature Id="in_asap" Title="Winamp plugin" Level="9" ConfigurableDirectory="WINAMPPLUG.DIR" Description="Plugin for Winamp." AllowAdvertise="no">

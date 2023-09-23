@@ -1,4 +1,4 @@
-// asapinfo.ci - module parser
+// asapinfo.fu - module parser
 //
 // Copyright (C) 2010-2023  Piotr Fusik
 //
@@ -43,7 +43,7 @@ enum ASAPModuleType
 
 class DurationParser
 {
-	string Source;
+	string? Source;
 	int Position;
 	int Length;
 
@@ -103,9 +103,9 @@ class DurationParser
 public class ASAPInfo
 {
 	/// ASAP version - major part.
-	public const int VersionMajor = 5;
+	public const int VersionMajor = 6;
 	/// ASAP version - minor part.
-	public const int VersionMinor = 3;
+	public const int VersionMinor = 0;
 	/// ASAP version - micro part.
 	public const int VersionMicro = 0;
 	/// ASAP version as a string.
@@ -1423,7 +1423,7 @@ public class ASAPInfo
 	/// Loads file information.
 	public void Load!(
 		/// Filename, used to determine the format.
-		string filename,
+		string? filename,
 		/// Contents of the file.
 		byte[] module,
 		/// Length of the file.
@@ -1912,7 +1912,7 @@ public class ASAPInfo
 	/// Returns the extension of the original module format.
 	/// For native modules it simply returns their extension.
 	/// For the SAP format it attempts to detect the original module format.
-	public string GetOriginalModuleExt(
+	public string? GetOriginalModuleExt(
 		/// Contents of the file.
 		byte[] module,
 		/// Length of the file.

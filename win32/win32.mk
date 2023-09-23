@@ -1,6 +1,6 @@
 # MinGW for most ports
 WIN32_CC = $(DO)i686-w64-mingw32-gcc $(WIN32_CARGS) $(filter-out %.h,$^)
-WIN32_CXX = $(DO)i686-w64-mingw32-g++ $(WIN32_CARGS) -std=c++17 $(filter-out %.h %.hpp,$^)
+WIN32_CXX = $(DO)i686-w64-mingw32-g++ $(WIN32_CARGS) -std=c++20 $(filter-out %.h %.hpp,$^)
 WIN32_WINDRES = $(DO)i686-w64-mingw32-windres -o $@ $<
 VLC_INCLUDE = ../vlc/include
 VLC_LIB32 = "C:/Program Files (x86)/VideoLAN/VLC"
@@ -8,16 +8,16 @@ VLC_LIB64 = "C:/Program Files/VideoLAN/VLC"
 
 # Microsoft compiler for foobar2000
 FOOBAR2000_SDK_DIR = ../foobar2000_SDK
-WIN32_CL = $(WIN32_CLDO)win32/foobar2000/msvc32.bat cl -std:c++17 -GR- -GS- -wd4996 -DNDEBUG $(WIN32_CLARGS) $(filter-out %.h,$^)
+WIN32_CL = $(WIN32_CLDO)win32/foobar2000/msvc32.bat cl -std:c++20 -GR- -GS- -wd4996 -DNDEBUG $(WIN32_CLARGS) $(filter-out %.h,$^)
 WIN32_LINKOPT = -link -release -noexp -noimplib
 WIN32_MKLIB = $(DO)win32/foobar2000/msvc32.bat lib -nologo -ltcg -out:$@ $^
-WIN64_CL = $(WIN32_CLDO)win32/foobar2000/msvc64.bat cl -std:c++17 -GR- -GS- -wd4996 -DNDEBUG $(WIN32_CLARGS) $(filter-out %.h,$^)
+WIN64_CL = $(WIN32_CLDO)win32/foobar2000/msvc64.bat cl -std:c++20 -GR- -GS- -wd4996 -DNDEBUG $(WIN32_CLARGS) $(filter-out %.h,$^)
 WIN64_LINKOPT = $(WIN32_LINKOPT)
 WIN64_MKLIB = $(DO)win32/foobar2000/msvc64.bat lib -nologo -ltcg -out:$@ $^
 
 # MinGW x64
 WIN64_CC = $(DO)x86_64-w64-mingw32-gcc $(WIN32_CARGS) $(filter-out %.h,$^)
-WIN64_CXX = $(DO)x86_64-w64-mingw32-g++ $(WIN32_CARGS) -std=c++17 $(filter-out %.h %.hpp,$^)
+WIN64_CXX = $(DO)x86_64-w64-mingw32-g++ $(WIN32_CARGS) -std=c++20 $(filter-out %.h %.hpp,$^)
 WIN64_WINDRES = $(DO)x86_64-w64-mingw32-windres -o $@ $<
 
 # Windows Installer XML
@@ -145,6 +145,14 @@ win32/bass/bass_asap-res.o: $(call src,win32/gui.rc asap.h)
 	$(WIN32_WINDRES) -DBASS
 CLEAN += win32/bass/bass_asap-res.o
 
+win32/x64/bass_asap.dll: $(call src,win32/bass/bass_asap.c asap.[ch] win32/bass/bass-addon.h win32/bass/bass.h win32/bass/x64/bass.lib) win32/bass/x64/bass_asap-res.o
+	$(WIN64_CC) -DBASS
+CLEAN += win32/x64/bass_asap.dll
+
+win32/bass/x64/bass_asap-res.o: $(call src,win32/gui.rc asap.h)
+	$(WIN64_WINDRES) -DBASS
+CLEAN += win32/bass/x64/bass_asap-res.o
+
 # foobar2000
 
 FOOBAR2000_SRC = $(call src,win32/foobar2000/foo_asap.cpp asap.[ch] astil.[ch] aatr-stdio.[ch] aatr.h win32/info_dlg.[ch] win32/settings_dlg.[ch]) win32/foobar2000/foo_asap.res
@@ -229,10 +237,10 @@ win32/apokeysnd.dll: $(call src,win32/rmt/apokeysnd_dll.c) win32/rmt/pokey.c win
 	$(WIN32_CC) --std=c99 -DAPOKEYSND
 CLEAN += win32/apokeysnd.dll
 
-win32/rmt/pokey.h: $(srcdir)pokey.ci | win32/rmt/pokey.c
+win32/rmt/pokey.h: $(srcdir)pokey.fu | win32/rmt/pokey.c
 
-win32/rmt/pokey.c: $(srcdir)pokey.ci
-	$(CITO) -D APOKEYSND
+win32/rmt/pokey.c: $(srcdir)pokey.fu
+	$(FUT) -D APOKEYSND
 CLEAN += win32/rmt/pokey.c win32/rmt/pokey.h
 
 win32/rmt/apokeysnd-res.o: $(call src,win32/gui.rc asap.h)
@@ -257,10 +265,10 @@ win32/x64/ASAPShellEx-res.o: $(call src,win32/gui.rc asap.h)
 	$(WIN64_WINDRES) -DSHELLEX
 CLEAN += win32/x64/ASAPShellEx-res.o
 
-win32/shellex/asap-infowriter.hpp: $(call src,asapinfo.ci asap6502.ci asapwriter.ci flashpack.ci) $(ASM6502_OBX) | win32/shellex/asap-infowriter.cpp
+win32/shellex/asap-infowriter.hpp: $(call src,asapinfo.fu asap6502.fu asapwriter.fu flashpack.fu) $(ASM6502_OBX) | win32/shellex/asap-infowriter.cpp
 
-win32/shellex/asap-infowriter.cpp: $(call src,asapinfo.ci asap6502.ci asapwriter.ci flashpack.ci) $(ASM6502_OBX)
-	$(CITO)
+win32/shellex/asap-infowriter.cpp: $(call src,asapinfo.fu asap6502.fu asapwriter.fu flashpack.fu) $(ASM6502_OBX)
+	$(FUT)
 CLEAN += win32/shellex/asap-infowriter.cpp win32/shellex/asap-infowriter.hpp
 
 # setups
@@ -279,14 +287,14 @@ CLEAN += win32/setup/asap.wixobj
 
 release/asap-$(VERSION)-win64.msi: win32/x64/asap.wixobj \
 	$(call src,win32/wasap/wasap.ico win32/setup/license.rtf win32/setup/asap-banner.jpg win32/setup/asap-dialog.jpg win32/shellex/ASAPShellEx.propdesc) \
-	win32/x64/ASAPShellEx.dll win32/x64/libasap_plugin.dll win32/signed
+	$(addprefix win32/x64/,bass_asap.dll ASAPShellEx.dll foo_asap.dll libasap_plugin.dll) win32/signed
 	$(LIGHT) -ext WixUIExtension -sice:ICE69 -b win32 -b $(srcdir)/win32/setup -b $(srcdir)win32 $<
 
 win32/x64/asap.wixobj: $(srcdir)win32/setup/asap.wxs release/release.mk
 	$(CANDLE) -arch x64 -dVERSION=$(VERSION) $<
 CLEAN += win32/x64/asap.wixobj
 
-win32/signed: $(addprefix win32/,asapconv.exe sap2txt.exe wasap.exe in_asap.dll xmp-asap.dll bass_asap.dll apokeysnd.dll ASAPShellEx.dll foo_asap.dll libasap_plugin.dll x64/ASAPShellEx.dll x64/foo_asap.dll x64/libasap_plugin.dll)
+win32/signed: $(addprefix win32/,asapconv.exe sap2txt.exe wasap.exe in_asap.dll xmp-asap.dll bass_asap.dll apokeysnd.dll ASAPShellEx.dll foo_asap.dll libasap_plugin.dll x64/bass_asap.dll x64/ASAPShellEx.dll x64/foo_asap.dll x64/libasap_plugin.dll)
 	$(DO_SIGN)
 CLEAN += win32/signed
 
