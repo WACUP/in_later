@@ -380,7 +380,7 @@ static void getFileInfo(const in_char *file, in_char *title, int *length_in_ms)
 #endif
 }
 
-static int infoBox(const in_char *file, HWND hwndParent)
+/*static int infoBox(const in_char *file, HWND hwndParent)
 {
 #if 0	// TODO
 	char filename[MAX_PATH];
@@ -390,7 +390,7 @@ static int infoBox(const in_char *file, HWND hwndParent)
 #else
 	return INFOBOX_UNCHANGED;
 #endif
-}
+}*/
 
 static int isOurFile(const in_char *fn)
 {
@@ -616,7 +616,7 @@ In_Module plugin = {
 	init,
 	quit,
 	getFileInfo,
-	infoBox,
+	0/*infoBox*/,
 	isOurFile,
 	play,
 	pause,
@@ -947,7 +947,8 @@ extern "C" __declspec(dllexport) int winampGetExtendedFileInfoW(const wchar_t *f
 	else if (SameStrA(data, "streamgenre") ||
 			 SameStrA(data, "streamtype") ||
 			 SameStrA(data, "streamurl") ||
-			 SameStrA(data, "streamname"))
+			 SameStrA(data, "streamname") ||
+			 SameStrA(data, "reset"))
 	{
 		return 0;
 	}
