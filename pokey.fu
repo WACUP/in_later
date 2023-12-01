@@ -39,9 +39,9 @@ class PokeyChannel
 	internal int TimerCycle;
 
 	// Is channel muted?
-	const int MuteInit = 1;
-	const int MuteUser = 2;
-	const int MuteSerialInput = 4;
+	internal const int MuteInit = 1;
+	internal const int MuteUser = 2;
+	internal const int MuteSerialInput = 4;
 	internal int Mute;
 
 	int Out;
@@ -159,7 +159,7 @@ class Pokey
 	int ReloadCycles1;
 	int ReloadCycles3;
 	internal int PolyIndex;
-	const int NeverCycle = 0x800000;
+	internal const int NeverCycle = 0x800000;
 
 #if OPENCL
 	const int DeltaBufferLength = ASAP.SampleRate * 312 * 114 / 1773447 + UnitDeltaLength + 2;
@@ -239,6 +239,7 @@ class Pokey
 		IirAcc = 0;
 		IirRate = 44100 * 6 / sampleRate;
 		SumDACInputs = 0;
+		SumDACOutputs = 0;
 		StartFrame();
 	}
 
@@ -606,7 +607,7 @@ class PokeyPair
 	// DeltaBuffer.Length << SampleFactorShift shouldn't overflow int.
 	// SampleFactorShift could be 19, but that wouldn't improve
 	// accuracy because SampleFactor would be even.
-	const int SampleFactorShift = 18;
+	internal const int SampleFactorShift = 18;
 	internal int SampleFactor;
 	internal int SampleOffset;
 

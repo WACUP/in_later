@@ -41,25 +41,35 @@ enum ASAPModuleType
 #endif
 }
 
+/// Exception thrown when the input file is invalid.
+public class ASAPFormatException : Exception
+{
+}
+
+/// Exception thrown when an invalid argument is passed.
+public class ASAPArgumentException : Exception
+{
+}
+
 class DurationParser
 {
 	string? Source;
 	int Position;
 	int Length;
 
-	int ParseDigit!(int max)
-		throws
+	0 .. 9 ParseDigit!(int max)
+		throws ASAPFormatException
 	{
 		if (Position >= Length)
-			throw "Invalid duration";
+			throw ASAPFormatException("Invalid duration");
 		int digit = Source[Position++] - '0';
 		if (digit < 0 || digit > max)
-			throw "Invalid duration";
+			throw ASAPFormatException("Invalid duration");
 		return digit;
 	}
 
-	internal int Parse!(string s)
-		throws
+	internal uint Parse!(string s)
+		throws ASAPFormatException
 	{
 		Source = s;
 		Position = 0;
@@ -84,7 +94,7 @@ class DurationParser
 		if (Position >= Length)
 			return result;
 		if (s[Position++] != '.')
-			throw "Invalid duration";
+			throw ASAPFormatException("Invalid duration");
 		digit = ParseDigit(9);
 		result += digit * 100;
 		if (Position >= Length)
@@ -107,7 +117,7 @@ public class ASAPInfo
 	/// ASAP version - minor part.
 	public const int VersionMinor = 0;
 	/// ASAP version - micro part.
-	public const int VersionMicro = 0;
+	public const int VersionMicro = 1;
 	/// ASAP version as a string.
 	public const string Version = $"{VersionMajor}.{VersionMinor}.{VersionMicro}";
 
@@ -168,36 +178,29 @@ public class ASAPInfo
 
 	static bool IsValidChar(int c) => c >= ' ' && c <= '|' && c != '`' && c != '{';
 
-	static void CheckValidChar(int c)
-		throws
-	{
-		if (!IsValidChar(c))
-			throw "Invalid character";
-	}
-
 	internal static int GetWord(byte[] array, int i) => array[i] + (array[i + 1] << 8);
 
 	void ParseModule!(byte[] module, int moduleLen)
-		throws
+		throws ASAPFormatException
 	{
 		if ((module[0] != 0xff || module[1] != 0xff)
 		 && (module[0] != 0 || module[1] != 0)) // some CMC and clones start with zeros
-			throw "Invalid two leading bytes of the module";
+			throw ASAPFormatException("Invalid two leading bytes of the module");
 		Music = GetWord(module, 2);
 		int musicLastByte = GetWord(module, 4);
 		if (Music <= 0xd7ff && musicLastByte >= 0xd000)
-			throw "Module address conflicts with hardware registers";
+			throw ASAPFormatException("Module address conflicts with hardware registers");
 		int blockLen = musicLastByte + 1 - Music;
 		if (6 + blockLen != moduleLen) {
 			if (Type != ASAPModuleType.Rmt || 11 + blockLen > moduleLen)
-				throw "Module length doesn't match headers";
+				throw ASAPFormatException("Module length doesn't match headers");
 			// allow optional info for Raster Music Tracker
 			int infoAddr = GetWord(module, 6 + blockLen);
 			if (infoAddr != Music + blockLen)
-				throw "Invalid address of RMT info";
+				throw ASAPFormatException("Invalid address of RMT info");
 			int infoLen = GetWord(module, 8 + blockLen) + 1 - infoAddr;
 			if (10 + blockLen + infoLen != moduleLen)
-				throw "Invalid RMT info block";
+				throw ASAPFormatException("Invalid RMT info block");
 		}
 	}
 
@@ -301,10 +304,10 @@ public class ASAPInfo
 	const int CmrBassTableOffset = 0x70f;
 
 	void ParseCmc!(byte[] module, int moduleLen, ASAPModuleType type)
-		throws
+		throws ASAPFormatException
 	{
 		if (moduleLen < 0x306)
-			throw "Module too short";
+			throw ASAPFormatException("Module too short");
 		Type = type;
 		ParseModule(module, moduleLen);
 		int lastPos = 0x54;
@@ -382,14 +385,14 @@ public class ASAPInfo
 	}
 
 	void ParseDlt!(byte[] module, int moduleLen)
-		throws
+		throws ASAPFormatException
 	{
 		if (moduleLen != 0x2c06 && moduleLen != 0x2c07)
-			throw "Invalid module length";
+			throw ASAPFormatException("Invalid module length");
 		Type = ASAPModuleType.Dlt;
 		ParseModule(module, moduleLen);
 		if (Music != 0x2000)
-			throw "Unsupported module address";
+			throw ASAPFormatException("Unsupported module address");
 		bool[128] seen = false;
 		Songs = 0;
 		for (int pos = 0; pos < 128 && Songs < MaxSongs; pos++) {
@@ -397,7 +400,7 @@ public class ASAPInfo
 				ParseDltSong(module, seen, pos);
 		}
 		if (Songs == 0)
-			throw "No songs found";
+			throw ASAPFormatException("No songs found");
 	}
 
 	void ParseMptSong!(byte[] module, bool[]! globalSeen, int songLen, int pos)
@@ -473,21 +476,21 @@ public class ASAPInfo
 	}
 
 	void ParseMpt!(byte[] module, int moduleLen)
-		throws
+		throws ASAPFormatException
 	{
 		if (moduleLen < 0x1d0)
-			throw "Module too short";
+			throw ASAPFormatException("Module too short");
 		Type = ASAPModuleType.Mpt;
 		ParseModule(module, moduleLen);
 		int track0Addr = GetWord(module, 2) + 0x1ca;
 		if (module[0x1c6] + (module[0x1ca] << 8) != track0Addr)
-			throw "Invalid address of the first track";
+			throw ASAPFormatException("Invalid address of the first track");
 		// Calculate the length of the first track. Address of the second track minus
 		// address of the first track equals the length of the first track in bytes.
 		// Divide by two to get number of track positions.
 		int songLen = (module[0x1c7] + (module[0x1cb] << 8) - track0Addr) >> 1;
 		if (songLen > 0xfe)
-			throw "Song too long";
+			throw ASAPFormatException("Song too long");
 		// `globalSeen[i] == true` if the track position `i` has been processed
 		bool[256] globalSeen = false;
 		Songs = 0;
@@ -498,7 +501,7 @@ public class ASAPInfo
 			}
 		}
 		if (Songs == 0)
-			throw "No songs found";
+			throw ASAPFormatException("No songs found");
 	}
 
 	static int GetRmtInstrumentFrames(byte[] module, int instrument, int volume, int volumeFrame, bool onExtraPokey)
@@ -675,10 +678,10 @@ public class ASAPInfo
 	}
 
 	void ParseRmt!(byte[] module, int moduleLen)
-		throws
+		throws ASAPFormatException
 	{
 		if (!ValidateRmt(module, moduleLen))
-			throw "Invalid RMT file";
+			throw ASAPFormatException("Invalid RMT file");
 		int posShift;
 		switch (module[9]) {
 		case '4':
@@ -689,11 +692,11 @@ public class ASAPInfo
 			posShift = 3;
 			break;
 		default:
-			throw "Unsupported number of channels";
+			throw ASAPFormatException("Unsupported number of channels");
 		}
 		int perFrame = module[0xc];
 		if (perFrame < 1 || perFrame > 4)
-			throw "Unsupported player call rate";
+			throw ASAPFormatException("Unsupported player call rate");
 		Type = ASAPModuleType.Rmt;
 		ParseModule(module, moduleLen);
 		int blockLen = GetWord(module, 4) + 1 - Music;
@@ -702,7 +705,7 @@ public class ASAPInfo
 			songLen += 4;
 		songLen >>= posShift;
 		if (songLen >= 0x100)
-			throw "Song too long";
+			throw ASAPFormatException("Song too long");
 		bool[256] globalSeen = false;
 		Songs = 0;
 		for (int pos = 0; pos < songLen && Songs < MaxSongs; pos++) {
@@ -715,7 +718,7 @@ public class ASAPInfo
 		Fastplay = 312 / perFrame;
 		Player = 0x600;
 		if (Songs == 0)
-			throw "No songs found";
+			throw ASAPFormatException("No songs found");
 #if !OPENCL
 		byte[MaxTextLength] title;
 		int titleLen;
@@ -833,10 +836,10 @@ public class ASAPInfo
 #endif
 
 	void ParseTmc!(byte[] module, int moduleLen)
-		throws
+		throws ASAPFormatException
 	{
 		if (moduleLen < 0x1d0)
-			throw "Module too short";
+			throw ASAPFormatException("Module too short");
 		Type = ASAPModuleType.Tmc;
 		ParseModule(module, moduleLen);
 		Channels = 2;
@@ -844,15 +847,15 @@ public class ASAPInfo
 		// find first instrument
 		while (module[0x66 + i] == 0) {
 			if (++i >= 64)
-				throw "No instruments";
+				throw ASAPFormatException("No instruments");
 		}
 		int lastPos = (module[0x66 + i] << 8) + module[0x26 + i] - GetWord(module, 2) - 0x1b0;
 		if (0x1b5 + lastPos >= moduleLen)
-			throw "Module too short";
+			throw ASAPFormatException("Module too short");
 		// skip trailing jumps
 		do {
 			if (lastPos <= 0)
-				throw "No songs found";
+				throw ASAPFormatException("No songs found");
 			lastPos -= 16;
 		} while (module[0x1b5 + lastPos] >= 0x80);
 		Songs = 0;
@@ -863,7 +866,7 @@ public class ASAPInfo
 		// must set fastplay after song durations calculations, so they assume 312
 		i = module[0x25];
 		if (i < 1 || i > 4)
-			throw "Unsupported player call rate";
+			throw ASAPFormatException("Unsupported player call rate");
 		Fastplay = 312 / i;
 #if !OPENCL
 		byte[MaxTextLength] title;
@@ -945,15 +948,15 @@ public class ASAPInfo
 	}
 
 	void ParseTm2!(byte[] module, int moduleLen)
-		throws
+		throws ASAPFormatException
 	{
 		if (moduleLen < 0x3a4)
-			throw "Module too short";
+			throw ASAPFormatException("Module too short");
 		Type = ASAPModuleType.Tm2;
 		ParseModule(module, moduleLen);
 		int i = module[0x25];
 		if (i < 1 || i > 4)
-			throw "Unsupported player call rate";
+			throw ASAPFormatException("Unsupported player call rate");
 		Fastplay = 312 / i;
 		Player = 0x800;
 		if (module[0x1f] != 0)
@@ -971,12 +974,12 @@ public class ASAPInfo
 		}
 		lastPos -= GetWord(module, 2) + 0x380;
 		if (0x386 + lastPos >= moduleLen)
-			throw "Module too short";
+			throw ASAPFormatException("Module too short");
 		// skip trailing stop/jump commands
 		int c;
 		do {
 			if (lastPos <= 0)
-				throw "No songs found";
+				throw ASAPFormatException("No songs found");
 			lastPos -= 17;
 			c = module[0x386 + 16 + lastPos];
 		} while (c == 0 || c >= 0x80);
@@ -996,14 +999,14 @@ public class ASAPInfo
 #endif
 	}
 
-	static int AfterFF(byte[] module, int moduleLen, int currentOffset)
-		throws
+	static uint AfterFF(byte[] module, int moduleLen, int currentOffset)
+		throws ASAPFormatException
 	{
 		while (currentOffset < moduleLen) {
 			if (module[currentOffset++] == 0xff)
 				return currentOffset;
 		}
-		throw "Module too short";
+		throw ASAPFormatException("Module too short");
 	}
 
 	static int GetFcTrackCommand(byte[] module, int[] trackPos, int n)
@@ -1039,10 +1042,10 @@ public class ASAPInfo
 	}
 
 	void ParseFc!(byte[] module, int moduleLen)
-		throws
+		throws ASAPFormatException
 	{
 		if (!ValidateFc(module, moduleLen))
-			throw "Invalid FC file";
+			throw ASAPFormatException("Invalid FC file");
 		Type = ASAPModuleType.Fc;
 
 		Player = 0x400;
@@ -1145,35 +1148,35 @@ public class ASAPInfo
 		return true;
 	}
 
-	static int ParseDec(byte[] module, int i, int argEnd, int minVal, int maxVal)
-		throws
+	static ushort ParseDec(byte[] module, int i, int argEnd, int minVal, int maxVal)
+		throws ASAPFormatException
 	{
 		if (i < 0)
-			throw "Missing number";
+			throw ASAPFormatException("Missing number");
 		int r = 0;
 		while (i < argEnd) {
 			int c = module[i++];
 			if (c < '0' || c > '9')
-				throw "Invalid number";
+				throw ASAPFormatException("Invalid number");
 			r = r * 10 + c - '0';
 			if (r > maxVal)
-				throw "Number too big";
+				throw ASAPFormatException("Number too big");
 		}
 		if (r < minVal)
-			throw "Number too small";
+			throw ASAPFormatException("Number too small");
 		return r;
 	}
 
-	static int ParseHex(byte[] module, int i, int argEnd)
-		throws
+	static ushort ParseHex(byte[] module, int i, int argEnd)
+		throws ASAPFormatException
 	{
 		if (i < 0)
-			throw "Missing number";
+			throw ASAPFormatException("Missing number");
 		int r = 0;
 		while (i < argEnd) {
 			int c = module[i++];
 			if (r > 0xfff)
-				throw "Number too big";
+				throw ASAPFormatException("Number too big");
 			r <<= 4;
 			if (c >= '0' && c <= '9')
 				r += c - '0';
@@ -1182,16 +1185,16 @@ public class ASAPInfo
 			else if (c >= 'a' && c <= 'f')
 				r += c - 'a' + 10;
 			else
-				throw "Invalid number";
+				throw ASAPFormatException("Invalid number");
 		}
 		return r;
 	}
 
 	/// Returns the number of milliseconds represented by the given string.
-	public static int ParseDuration(
+	public static uint ParseDuration(
 		/// Time in the `"mm:ss.xxx"` format.
 		string s)
-		throws
+		throws ASAPFormatException
 	{
 		DurationParser() parser;
 		return parser.Parse(s);
@@ -1201,10 +1204,10 @@ public class ASAPInfo
 		=> moduleLen >= 30 && HasStringAt(module, 0, "SAP\r\n");
 
 	void ParseSap!(byte[] module, int moduleLen)
-		throws
+		throws ASAPFormatException
 	{
 		if (!ValidateSap(module, moduleLen))
-			throw "Invalid SAP file";
+			throw ASAPFormatException("Invalid SAP file");
 		Fastplay = -1;
 		int type = 0;
 		int moduleIndex = 5;
@@ -1214,7 +1217,7 @@ public class ASAPInfo
 			int lineStart = moduleIndex;
 			while (module[moduleIndex] > ' ') {
 				if (++moduleIndex >= moduleLen)
-					throw "Invalid SAP file";
+					throw ASAPFormatException("Invalid SAP file");
 			}
 			int tagLen = moduleIndex - lineStart;
 
@@ -1224,7 +1227,8 @@ public class ASAPInfo
 			for (;;) {
 				int c = module[moduleIndex];
 				if (c > ' ') {
-					CheckValidChar(c);
+					if (!IsValidChar(c))
+						throw ASAPFormatException("Invalid character");
 					if (argStart < 0)
 						argStart = moduleIndex;
 					argEnd = -1;
@@ -1236,10 +1240,10 @@ public class ASAPInfo
 						break;
 				}
 				if (++moduleIndex >= moduleLen)
-					throw "Invalid SAP file";
+					throw ASAPFormatException("Invalid SAP file");
 			}
 			if (++moduleIndex + 6 >= moduleLen)
-				throw "Invalid SAP file";
+				throw ASAPFormatException("Invalid SAP file");
 
 			// handle tags, ignore unknown
 			switch (Encoding.UTF8.GetString(module, lineStart, tagLen)) {
@@ -1255,9 +1259,9 @@ public class ASAPInfo
 				break;
 			case "TIME":
 				if (durationIndex >= MaxSongs)
-					throw "Too many TIME tags";
+					throw ASAPFormatException("Too many TIME tags");
 				if (argStart < 0)
-					throw "Missing TIME argument";
+					throw ASAPFormatException("Missing TIME argument");
 				if (argEnd - argStart > 5 && HasStringAt(module, argEnd - 5, " LOOP")) {
 					Loops[durationIndex] = true;
 					argEnd -= 5;
@@ -1276,7 +1280,7 @@ public class ASAPInfo
 				break;
 			case "TYPE":
 				if (argStart < 0)
-					throw "Missing TYPE argument";
+					throw ASAPFormatException("Missing TYPE argument");
 				type = module[argStart];
 				break;
 			case "FASTPLAY":
@@ -1294,7 +1298,7 @@ public class ASAPInfo
 			case "COVOX":
 				CovoxAddr = ParseHex(module, argStart, argEnd);
 				if (CovoxAddr != 0xd600)
-					throw "COVOX should be D600";
+					throw ASAPFormatException("COVOX should be D600");
 				Channels = 2;
 				break;
 			case "STEREO":
@@ -1309,41 +1313,41 @@ public class ASAPInfo
 		}
 
 		if (DefaultSong >= Songs)
-			throw "DEFSONG too big";
+			throw ASAPFormatException("DEFSONG too big");
 		switch (type) {
 		case 'B':
 			if (Player < 0)
-				throw "Missing PLAYER tag";
+				throw ASAPFormatException("Missing PLAYER tag");
 			if (Init < 0)
-				throw "Missing INIT tag";
+				throw ASAPFormatException("Missing INIT tag");
 			Type = ASAPModuleType.SapB;
 			break;
 		case 'C':
 			if (Player < 0)
-				throw "Missing PLAYER tag";
+				throw ASAPFormatException("Missing PLAYER tag");
 			if (Music < 0)
-				throw "Missing MUSIC tag";
+				throw ASAPFormatException("Missing MUSIC tag");
 			Type = ASAPModuleType.SapC;
 			break;
 		case 'D':
 			if (Init < 0)
-				throw "Missing INIT tag";
+				throw ASAPFormatException("Missing INIT tag");
 			Type = ASAPModuleType.SapD;
 			break;
 		case 'S':
 			if (Init < 0)
-				throw "Missing INIT tag";
+				throw ASAPFormatException("Missing INIT tag");
 			Type = ASAPModuleType.SapS;
 			if (Fastplay < 0)
 				Fastplay = 78;
 			break;
 		default:
-			throw "Unsupported TYPE";
+			throw ASAPFormatException("Unsupported TYPE");
 		}
 		if (Fastplay < 0)
 			Fastplay = Ntsc ? 262 : 312;
 		if (module[moduleIndex + 1] != 0xff)
-			throw "Invalid binary header";
+			throw ASAPFormatException("Invalid binary header");
 		HeaderLen = moduleIndex;
 	}
 
@@ -1408,8 +1412,8 @@ public class ASAPInfo
 		string ext)
 		=> IsOurPackedExt(PackExt(ext));
 
-	static int GuessPackedExt(byte[] module, int moduleLen)
-		throws
+	static uint GuessPackedExt(byte[] module, int moduleLen)
+		throws ASAPFormatException
 	{
 		if (ValidateSap(module, moduleLen))
 			return PackExt("SAP");
@@ -1417,7 +1421,7 @@ public class ASAPInfo
 			return PackExt("FC");
 		if (ValidateRmt(module, moduleLen))
 			return PackExt("RMT");
-		throw "Unknown format";
+		throw ASAPFormatException("Unknown format");
 	}
 
 	/// Loads file information.
@@ -1428,7 +1432,7 @@ public class ASAPInfo
 		byte[] module,
 		/// Length of the file.
 		int moduleLen)
-		throws
+		throws ASAPFormatException
 	{
 		int ext;
 		if (filename != null) {
@@ -1445,7 +1449,7 @@ public class ASAPInfo
 					ext = i;
 			}
 			if (ext < 0)
-				throw "Filename has no extension";
+				throw ASAPFormatException("Filename has no extension");
 			ext -= basename;
 			if (ext > MaxTextLength)
 				ext = MaxTextLength;
@@ -1528,25 +1532,26 @@ public class ASAPInfo
 #if EXPERIMENTAL_XEX
 		case PackExt("XEX"):
 			if (moduleLen < 7 || module[0] != 0xff || module[1] != 0xff)
-				throw "Missing 0xff,0xff header";
+				throw ASAPFormatException("Missing 0xff,0xff header");
 			Type = ASAPModuleType.Xex;
 			return;
 #endif
 #endif
 		default:
-			throw "Unknown filename extension";
+			throw ASAPFormatException("Unknown filename extension");
 		}
 	}
 
 #if !OPENCL
 
 	static void CheckValidText(string s)
-		throws
+		throws ASAPArgumentException
 	{
 		if (s.Length > MaxTextLength)
-			throw "Text too long";
+			throw ASAPArgumentException("Text too long");
 		foreach (int c in s)
-			CheckValidChar(c);
+			if (!IsValidChar(c))
+				throw ASAPArgumentException("Invalid character");
 	}
 
 	/// Returns author's name.
@@ -1562,7 +1567,7 @@ public class ASAPInfo
 	public void SetAuthor!(
 		/// New author's name for the current music.
 		string value)
-		throws
+		throws ASAPArgumentException
 	{
 		CheckValidText(value);
 		Author = value;
@@ -1577,7 +1582,7 @@ public class ASAPInfo
 	public void SetTitle!(
 		/// New title for the current music.
 		string value)
-		throws
+		throws ASAPArgumentException
 	{
 		CheckValidText(value);
 		Title = value;
@@ -1608,7 +1613,7 @@ public class ASAPInfo
 	public void SetDate!(
 		/// New music creation date.
 		string value)
-		throws
+		throws ASAPArgumentException
 	{
 		CheckValidText(value);
 		Date = value;
@@ -1685,10 +1690,10 @@ public class ASAPInfo
 	public void SetDefaultSong!(
 		/// New default song.
 		int song)
-		throws
+		throws ASAPArgumentException
 	{
 		if (song < 0 || song >= Songs)
-			throw "Song out of range";
+			throw ASAPArgumentException("Song out of range");
 		DefaultSong = song;
 	}
 
@@ -1706,10 +1711,10 @@ public class ASAPInfo
 		int song,
 		/// New length in milliseconds.
 		int duration)
-		throws
+		throws ASAPArgumentException
 	{
 		if (song < 0 || song >= Songs)
-			throw "Song out of range";
+			throw ASAPArgumentException("Song out of range");
 		Durations[song] = duration;
 	}
 
@@ -1731,10 +1736,10 @@ public class ASAPInfo
 		int song,
 		/// `true` if the song loops.
 		bool loop)
-		throws
+		throws ASAPArgumentException
 	{
 		if (song < 0 || song >= Songs)
-			throw "Song out of range";
+			throw ASAPArgumentException("Song out of range");
 		Loops[song] = loop;
 	}
 
@@ -1794,10 +1799,10 @@ public class ASAPInfo
 	public void SetMusicAddress!(
 		/// New music address.
 		int address)
-		throws
+		throws ASAPArgumentException
 	{
 		if (address < 0 || address >= 0xffff)
-			throw "Invalid music address";
+			throw ASAPArgumentException("Invalid music address");
 		Music = address;
 	}
 
@@ -1838,7 +1843,7 @@ public class ASAPInfo
 	public static string GetExtDescription(
 		/// Filename extension without the leading dot.
 		string ext)
-		throws
+		throws ASAPFormatException
 	{
 		switch (PackExt(ext)) {
 		case PackExt("SAP"): return "Slight Atari Player";
@@ -1856,11 +1861,11 @@ public class ASAPInfo
 		case PackExt("TM2"): return "Theta Music Composer 2.x";
 		case PackExt("FC"): return "Future Composer";
 		case PackExt("XEX"): return "Atari 8-bit executable";
-		default: throw "Unknown extension";
+		default: throw ASAPFormatException("Unknown extension");
 		}
 	}
 
-	const int RmtInit = 0xc80;
+	internal const int RmtInit = 0xc80;
 
 	internal int GetRmtSapOffset(byte[] module, int moduleLen)
 	{

@@ -1,7 +1,7 @@
 /*
  * in_asap.c - ASAP plugin for Winamp
  *
- * Copyright (C) 2005-2019  Piotr Fusik
+ * Copyright (C) 2005-2023  Piotr Fusik
  *
  * This file is part of ASAP (Another Slight Atari Player),
  * see http://asap.sourceforge.net
@@ -83,6 +83,8 @@ static int seek_needed;
 static ASAPInfo *title_info, *playlist_info;
 //static int title_song;
 
+LPCTSTR atrFilenameHash(LPCTSTR filename);
+
 #if 0
 static void writeIniInt(const wchar_t *name, int value, const wchar_t *ini_file)
 {
@@ -104,6 +106,7 @@ static void read_config(void)
 		loaded = true;
 
 		LPCWSTR ini_file = GetPaths()->winamp_ini_file;
+		sample_rate = GetPrivateProfileInt(INI_SECTION, TEXT("sample_rate"), sample_rate, ini_file);
 		song_length = GetPrivateProfileInt(INI_SECTION, TEXT("song_length"), song_length, ini_file);
 		silence_seconds = GetPrivateProfileInt(INI_SECTION, TEXT("silence_seconds"), silence_seconds, ini_file);
 		play_loops = GetPrivateProfileInt(INI_SECTION, TEXT("play_loops"), play_loops, ini_file);
@@ -122,6 +125,7 @@ static void config(HWND hwndParent)
 	if (settingsDialog(plugin.hDllInstance, hwndParent))
 	{
 		LPCWSTR ini_file = GetPaths()->winamp_ini_file;
+		writeIniInt(TEXT("sample_rate"), sample_rate, ini_file);
 		writeIniInt(TEXT("song_length"), song_length, ini_file);
 		writeIniInt(TEXT("silence_seconds"), silence_seconds, ini_file);
 		writeIniInt(TEXT("play_loops"), play_loops, ini_file);
@@ -286,16 +290,9 @@ static void expandPlaylistSongs(void)
 
 static int init(void)
 {
-	// loader so that we can get the localisation service api for use
-	WASABI_API_LNG = plugin.language;
-
-	// need to have this initialised before we try to do anything with localisation features
-	WASABI_API_START_LANG(plugin.hDllInstance, InASAPLangGUID);
-
-	wchar_t szDescription[256] = { 0 };
-	StringCchPrintf(szDescription, ARRAYSIZE(szDescription),
-					WASABI_API_LNGSTRINGW(IDS_PLUGIN_NAME), ASAPInfo_VERSION);
-	plugin.description = (char*)plugin.memmgr->sysDupStr(szDescription);
+	WASABI_API_START_LANG_DESC(plugin.language, plugin.hDllInstance,
+							   InASAPLangGUID, IDS_PLUGIN_NAME,
+							   TEXT(ASAPInfo_VERSION), &plugin.description);
 
 	return IN_INIT_SUCCESS;
 }
@@ -445,7 +442,7 @@ static DWORD WINAPI playThread(LPVOID dummy)
 			plugin.VSAAddPCMData(buffer, channels, BITS_PER_SAMPLE, t);
 #if SUPPORT_EQUALIZER
 			t = buffered_bytes / (channels * (BITS_PER_SAMPLE / 8));
-			t = plugin.dsp_dosamples((short *) buffer, t, BITS_PER_SAMPLE, channels, ASAP_SAMPLE_RATE);
+			t = plugin.dsp_dosamples((short *) buffer, t, BITS_PER_SAMPLE, channels, sample_rate);
 			t *= channels * (BITS_PER_SAMPLE / 8);
 			plugin.outMod->Write((char *) buffer, t);
 #else
@@ -496,30 +493,25 @@ static int play(const in_char *fn)
 			return 1;
 
 		const int channels = ASAPInfo_GetChannels(info);
-		const int maxlatency = plugin.outMod->Open(ASAP_SAMPLE_RATE, channels, BITS_PER_SAMPLE, -1, -1);
+		const int maxlatency = (plugin.outMod->Open ? plugin.outMod->Open(sample_rate, channels, BITS_PER_SAMPLE, -1, -1) : -1);
 		if (maxlatency < 0)
 			return 1;
 
-		const int bitrate = (channels * ASAP_SAMPLE_RATE * BITS_PER_SAMPLE);
-		plugin.SetInfo(bitrate / 1000, ASAP_SAMPLE_RATE / 1000, channels, 1);
-		plugin.SAVSAInit(maxlatency, ASAP_SAMPLE_RATE);
+		const int bitrate = (channels * sample_rate * BITS_PER_SAMPLE);
+		plugin.SetInfo(bitrate / 1000, sample_rate / 1000, channels, 1);
+		plugin.SAVSAInit(maxlatency, sample_rate);
 		// the order of VSASetInfo's arguments in in2.h is wrong!
 		// http://forums.winamp.com/showthread.php?postid=1841035
-		plugin.VSASetInfo(ASAP_SAMPLE_RATE, channels);
+		plugin.VSASetInfo(sample_rate, channels);
 		plugin.outMod->SetVolume(-666);
 		seek_needed = -1;
 
-		thread_handle = CreateThread(NULL, 0, playThread, NULL, CREATE_SUSPENDED, NULL);
-		if (thread_handle)
-		{
-			thread_run = true;
-			SetThreadPriority(thread_handle, (int)plugin.config->
-							  GetInt(playbackConfigGroupGUID,
-							  L"priority", THREAD_PRIORITY_HIGHEST));
-			ResumeThread(thread_handle);
-		}
+		thread_handle = StartThread(playThread, 0, static_cast<int>(plugin.config->
+									   GetInt(playbackConfigGroupGUID, L"priority",
+											  THREAD_PRIORITY_HIGHEST)), 0, NULL);
+		thread_run = (thread_handle != NULL);
 		//setPlayingSong(filename, song);
-		return (thread_handle != NULL ? 0 : 1);
+		return !thread_run;
 	}
 	return -1;
 }
@@ -586,6 +578,8 @@ void GetFileExtensions(void)
 	static bool loaded_extensions;
 	if (!loaded_extensions)
 	{
+		loaded_extensions = true;
+
 		// TODO localise
 		plugin.FileExtensions = (char*)L"SAP\0Slight Atari Player (*.SAP)\0"
 									   L"CMC;CM3;CMR;CMS;DMC\0Chaos Music Composer "
@@ -597,7 +591,6 @@ void GetFileExtensions(void)
 									   L"TM2\0Theta Music Composer 2.x (*.TM2)\0"
 									   L"FC\0Future Composer (*.FC)\0"
 									   L"ATR\0Atari 8-bit Disk Image (*.ATR)\0";
-		loaded_extensions = true;
 	}
 }
 
@@ -649,8 +642,7 @@ extern "C" __declspec(dllexport) int winampUninstallPlugin(HINSTANCE hDllInst, H
 {
 	// TODO
 	// prompt to remove our settings with default as no (just incase)
-	/*if (MessageBox(hwndDlg, WASABI_API_LNGSTRINGW(IDS_PLUGIN_UNINSTALL),
-				   (LPCWSTR)plugin.description, MB_YESNO | MB_DEFBUTTON2) == IDYES)
+	/*if (plugin.language->UninstallSettingsPrompt(reinterpret_cast<const wchar_t*>(plugin.description)))
 	{
 		REMOVE_INI_SECTION_W(app_nameW, 0);
 	}*/
@@ -919,7 +911,7 @@ static int get_metadata(const char* filename, const ASAPInfo* info, int song,
 	}
 	else if (SameStrA(data, "bitrate"))
 	{
-		const int br = (ASAPInfo_GetChannels(info) * ASAP_SAMPLE_RATE * BITS_PER_SAMPLE);
+		const int br = (ASAPInfo_GetChannels(info) * sample_rate * BITS_PER_SAMPLE);
 		if (br > 0)
 		{
 			I2WStr((br / 1000), dest, destlen);
@@ -928,7 +920,7 @@ static int get_metadata(const char* filename, const ASAPInfo* info, int song,
 	}
 	else if (SameStrA(data, "samplerate"))
 	{
-		I2WStr(ASAP_SAMPLE_RATE, dest, destlen);
+		I2WStr(sample_rate, dest, destlen);
 		return 1;
 	}
 	return 0;
@@ -1053,7 +1045,7 @@ extern "C" __declspec(dllexport) intptr_t winampGetExtendedRead_openW(const wcha
 
 						*bps = BITS_PER_SAMPLE;
 						*nch = ASAPInfo_GetChannels(e->info);
-						*srate = ASAP_SAMPLE_RATE;
+						*srate = sample_rate;
 						*size = -1; // TODO need to get number of samples, etc
 						return reinterpret_cast<intptr_t>(e);
 					}

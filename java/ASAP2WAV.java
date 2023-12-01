@@ -27,6 +27,8 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import net.sf.asap.ASAP;
+import net.sf.asap.ASAPArgumentException;
+import net.sf.asap.ASAPFormatException;
 import net.sf.asap.ASAPInfo;
 import net.sf.asap.ASAPSampleFormat;
 
@@ -71,7 +73,7 @@ public class ASAP2WAV
 		sampleRate = Integer.parseInt(s);
 	}
 
-	private static void setTime(String s) throws Exception
+	private static void setTime(String s) throws ASAPFormatException
 	{
 		duration = ASAPInfo.parseDuration(s);
 	}
@@ -112,7 +114,7 @@ public class ASAP2WAV
 		return got;
 	}
 
-	private static void processFile(String inputFilename) throws Exception
+	private static void processFile(String inputFilename) throws IOException, ASAPFormatException, ASAPArgumentException
 	{
 		InputStream is = new FileInputStream(inputFilename);
 		byte[] module = new byte[ASAPInfo.MAX_MODULE_LENGTH];
@@ -155,7 +157,7 @@ public class ASAP2WAV
 		duration = -1;
 	}
 
-	public static void main(String[] args) throws Exception
+	public static void main(String[] args) throws IOException, ASAPFormatException, ASAPArgumentException
 	{
 		boolean noInputFiles = true;
 		for (int i = 0; i < args.length; i++) {

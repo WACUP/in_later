@@ -35,11 +35,17 @@ export const asapWeb = {
 	playContent(filename, content, song)
 	{
 		const asap = new ASAP();
-		asap.load(filename, content, content.length);
-		const info = asap.getInfo();
-		if (song === undefined)
-			song = info.getDefaultSong();
-		asap.playSong(song, -1);
+		try {
+			asap.load(filename, content, content.length);
+			const info = asap.getInfo();
+			if (song === undefined)
+				song = info.getDefaultSong();
+			asap.playSong(song, -1);
+		}
+		catch (e) {
+			alert(e.message);
+			return;
+		}
 
 		this.stop();
 		const length = 4096;

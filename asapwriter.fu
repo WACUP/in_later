@@ -19,6 +19,11 @@
 // along with ASAP; if not, write to the Free Software Foundation, Inc.,
 // 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 
+/// Exception thrown when format conversion fails.
+public class ASAPConversionException : Exception
+{
+}
+
 class ASAPNativeModuleWriter
 {
 	internal ASAPWriter!? Writer;
@@ -33,13 +38,13 @@ class ASAPNativeModuleWriter
 		=> ASAPInfo.GetWord(SourceModule, SourceOffset + offset);
 
 	void Copy(int endOffset)
-		throws
+		throws ASAPConversionException
 	{
 		Writer.WriteBytes(SourceModule, SourceOffset + Writer.OutputOffset, SourceOffset + endOffset);
 	}
 
 	void RelocateBytes(int lowOffset, int highOffset, int count, int shift)
-		throws
+		throws ASAPConversionException
 	{
 		lowOffset += SourceOffset;
 		highOffset += SourceOffset;
@@ -52,7 +57,7 @@ class ASAPNativeModuleWriter
 	}
 
 	void RelocateLowHigh(int count)
-		throws
+		throws ASAPConversionException
 	{
 		int lowOffset = Writer.OutputOffset;
 		RelocateBytes(lowOffset, lowOffset + count, count, 0);
@@ -60,7 +65,7 @@ class ASAPNativeModuleWriter
 	}
 
 	void RelocateWords(int count)
-		throws
+		throws ASAPConversionException
 	{
 		while (--count >= 0) {
 			int address = GetWord(Writer.OutputOffset);
@@ -71,12 +76,12 @@ class ASAPNativeModuleWriter
 	}
 
 	internal void Write!(ASAPInfo info, ASAPModuleType type, int moduleLen)
-		throws
+		throws ASAPConversionException
 	{
 		int startAddr = GetWord(2);
 		AddressDiff = info.GetMusicAddress() < 0 ? 0 : info.GetMusicAddress() - startAddr;
 		if (GetWord(4) + AddressDiff > 0xffff)
-			throw "Address set too high";
+			throw ASAPConversionException("Address set too high");
 		switch (type) {
 		case ASAPModuleType.Cmc:
 		case ASAPModuleType.Cm3:
@@ -140,7 +145,7 @@ class ASAPNativeModuleWriter
 			RelocateBytes(6 + 128, 6 + 128 + 128 + 512, 128, 8); // instruments/high
 			break;
 		default:
-			throw "Impossible conversion";
+			throw ASAPConversionException("Impossible conversion");
 		}
 		Copy(moduleLen); // copy remaining bytes
 	}
@@ -258,39 +263,39 @@ public class ASAPWriter
 	}
 
 	internal void WriteByte!(int value)
-		throws
+		throws ASAPConversionException
 	{
 		if (OutputOffset >= OutputEnd)
-			throw "Output full";
+			throw ASAPConversionException("Output full");
 		Output[OutputOffset++] = value;
 	}
 
 	internal void WriteWord!(int value)
-		throws
+		throws ASAPConversionException
 	{
 		WriteByte(value & 0xff);
 		WriteByte(value >> 8);
 	}
 
 	internal void WriteBytes!(byte[] array, int startIndex, int endIndex)
-		throws
+		throws ASAPConversionException
 	{
 		int length = endIndex - startIndex;
 		if (OutputOffset + length > OutputEnd)
-			throw "Output full";
+			throw ASAPConversionException("Output full");
 		array.CopyTo(startIndex, Output, OutputOffset, length);
 		OutputOffset += length;
 	}
 
 	void WriteString!(string s)
-		throws
+		throws ASAPConversionException
 	{
 		foreach (int c in s)
 			WriteByte(c);
 	}
 
 	void WriteDec!(int value)
-		throws
+		throws ASAPConversionException
 	{
 		if (value >= 10) {
 			WriteDec(value / 10);
@@ -300,7 +305,7 @@ public class ASAPWriter
 	}
 
 	void WriteTextSapTag!(string tag, string value)
-		throws
+		throws ASAPConversionException
 	{
 		WriteString(tag);
 		WriteByte('"');
@@ -313,7 +318,7 @@ public class ASAPWriter
 	}
 
 	void WriteDecSapTag!(string tag, int value)
-		throws
+		throws ASAPConversionException
 	{
 		WriteString(tag);
 		WriteDec(value);
@@ -322,7 +327,7 @@ public class ASAPWriter
 	}
 
 	void WriteHexSapTag!(string tag, int value)
-		throws
+		throws ASAPConversionException
 	{
 		if (value < 0)
 			return;
@@ -336,7 +341,7 @@ public class ASAPWriter
 	}
 
 	void WriteSapHeader!(ASAPInfo info, int type, int init, int player)
-		throws
+		throws ASAPConversionException
 	{
 		WriteString("SAP\r\n");
 		WriteTextSapTag("AUTHOR ", info.GetAuthor());
@@ -376,7 +381,7 @@ public class ASAPWriter
 	}
 
 	void WriteExecutableHeader!(int[]!? initAndPlayer, ASAPInfo info, int type, int init, int player)
-		throws
+		throws ASAPConversionException
 	{
 		if (initAndPlayer == null)
 			WriteSapHeader(info, type, init, player);
@@ -387,7 +392,7 @@ public class ASAPWriter
 	}
 
 	void WritePlaTaxLda0!()
-		throws
+		throws ASAPConversionException
 	{
 		WriteByte(0x68);
 		WriteByte(0xaa);
@@ -396,7 +401,7 @@ public class ASAPWriter
 	}
 
 	void WriteCmcInit!(int[]!? initAndPlayer, ASAPInfo info)
-		throws
+		throws ASAPConversionException
 	{
 		if (initAndPlayer == null)
 			return; // to SAP
@@ -416,14 +421,14 @@ public class ASAPWriter
 	}
 
 	void WriteExecutableFromSap!(int[]! initAndPlayer, ASAPInfo info, int type, byte[] module, int moduleLen)
-		throws
+		throws ASAPConversionException
 	{
 		WriteExecutableHeader(initAndPlayer, info, type, info.GetInitAddress(), info.Player);
 		WriteBytes(module, info.HeaderLen, moduleLen);
 	}
 
-	int WriteExecutableHeaderForSongPos!(int[]! initAndPlayer, ASAPInfo info, int player, int codeForOneSong, int codeForManySongs, int playerOffset)
-		throws
+	ushort WriteExecutableHeaderForSongPos!(int[]! initAndPlayer, ASAPInfo info, int player, int codeForOneSong, int codeForManySongs, int playerOffset)
+		throws ASAPConversionException
 	{
 		if (info.GetSongs() != 1) {
 			WriteExecutableHeader(initAndPlayer, info, 'B', player - codeForManySongs, player + playerOffset);
@@ -434,7 +439,7 @@ public class ASAPWriter
 	}
 
 	internal void WriteExecutable!(int[]!? initAndPlayer, ASAPInfo info, byte[] module, int moduleLen)
-		throws
+		throws ASAPConversionException
 	{
 		byte[]? playerRoutine = ASAP6502.GetPlayerRoutine(info);
 		int player = -1;
@@ -444,7 +449,7 @@ public class ASAPWriter
 			player = ASAPInfo.GetWord(playerRoutine, 2);
 			playerLastByte = ASAPInfo.GetWord(playerRoutine, 4);
 			if (music <= playerLastByte)
-				throw "Module address conflicts with the player routine";
+				throw ASAPConversionException("Module address conflicts with the player routine");
 		}
 		int startAddr;
 		switch (info.Type) {
@@ -662,7 +667,7 @@ public class ASAPWriter
 	}
 
 	void WriteXexInfoTextDl!(int address, int len, int verticalScrollAt)
-		throws
+		throws ASAPConversionException
 	{
 		WriteByte(verticalScrollAt == 0 ? 0x62 : 0x42);
 		WriteWord(address);
@@ -671,7 +676,7 @@ public class ASAPWriter
 	}
 
 	void WriteXexInfo!(ASAPInfo info)
-		throws
+		throws ASAPConversionException
 	{
 		byte[256] title;
 		int titleLen = FormatXexInfoText(title, 0, 0, info.GetTitle().Length == 0 ? "(untitled)" : info.GetTitle(), false);
@@ -759,7 +764,7 @@ public class ASAPWriter
 	}
 
 	void WriteNative!(ASAPInfo info, byte[] module, int moduleLen)
-		throws
+		throws ASAPConversionException
 	{
 		ASAPNativeModuleWriter() nativeWriter;
 		nativeWriter.Writer = this;
@@ -780,7 +785,7 @@ public class ASAPWriter
 			nativeWriter.SourceOffset = info.HeaderLen;
 			int blockLen = nativeWriter.GetWord(4) - nativeWriter.GetWord(2) + 7;
 			if (blockLen < 7 || info.HeaderLen + blockLen >= moduleLen)
-				throw "Cannot extract module from SAP";
+				throw ASAPConversionException("Cannot extract module from SAP");
 			type = info.GetOriginalModuleType(module, moduleLen);
 			if (type == ASAPModuleType.Fc)
 				WriteBytes(module, info.HeaderLen + 6, info.HeaderLen + blockLen); // SAP -> FC
@@ -800,7 +805,7 @@ public class ASAPWriter
 	}
 
 	/// Writes the given module in a possibly different file format.
-	public int Write!(
+	public uint Write!(
 		/// Output filename, used to determine the format.
 		string targetFilename,
 		/// File information got from the source file with data updated for the output file.
@@ -811,7 +816,7 @@ public class ASAPWriter
 		int moduleLen,
 		/// Display information (xex output only).
 		bool tag)
-		throws
+		throws ASAPConversionException
 	{
 		int destExt = ASAPInfo.GetPackedExt(targetFilename);
 		switch (destExt) {
@@ -827,7 +832,7 @@ public class ASAPWriter
 				switch (info.Type) {
 				case ASAPModuleType.SapD:
 					if (info.GetPlayerRateScanlines() != 312)
-						throw "Impossible conversion";
+						throw ASAPConversionException("Impossible conversion");
 					WriteBytes(resource<byte[]>("xexd.obx"), 2, resource<byte[]>("xexd.obx").Length);
 					WriteWord(initAndPlayer[0]);
 					if (initAndPlayer[1] < 0) {
@@ -842,7 +847,7 @@ public class ASAPWriter
 					WriteByte(info.GetDefaultSong());
 					break;
 				case ASAPModuleType.SapS:
-					throw "Impossible conversion";
+					throw ASAPConversionException("Impossible conversion");
 				default:
 					WriteBytes(resource<byte[]>("xexb.obx"), 2, resource<byte[]>("xexb.obx").Length);
 					WriteWord(initAndPlayer[0]);
@@ -877,7 +882,7 @@ public class ASAPWriter
 					return OutputOffset;
 				}
 			}
-			throw "Impossible conversion";
+			throw ASAPConversionException("Impossible conversion");
 		}
 	}
 }

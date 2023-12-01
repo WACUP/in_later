@@ -1,7 +1,7 @@
 /*
  * settings_dlg.c - settings dialog box
  *
- * Copyright (C) 2007-2019  Piotr Fusik
+ * Copyright (C) 2007-2023  Piotr Fusik
  *
  * This file is part of ASAP (Another Slight Atari Player),
  * see http://asap.sourceforge.net
@@ -44,8 +44,15 @@ void setFocusAndSelect(HWND hDlg, int nID)
 	SendMessage(hWnd, EM_SETSEL, 0, -1);
 }
 
-void settingsDialogSet(HWND hDlg, int song_length, int silence_seconds, bool play_loops, int mute_mask)
+void settingsDialogSet(HWND hDlg, int sample_rate, int song_length, int silence_seconds, bool play_loops, int mute_mask)
 {
+	// TODO localise
+	HWND hWnd = GetDlgItem(hDlg, IDC_SAMPLERATE);
+	SendMessage(hWnd, CB_ADDSTRING, 0, (LPARAM) TEXT("44.1 kHz"));
+	SendMessage(hWnd, CB_ADDSTRING, 0, (LPARAM) TEXT("48 kHz"));
+	SendMessage(hWnd, CB_ADDSTRING, 0, (LPARAM) TEXT("96 kHz"));
+	SendMessage(hWnd, CB_ADDSTRING, 0, (LPARAM) TEXT("192"));
+	SendMessage(hWnd, CB_SETCURSEL, sample_rate == 48000 ? 1 : sample_rate == 96000 ? 2 : sample_rate == 192000 ? 3 : 0, 0);
 	if (song_length <= 0) {
 		CheckRadioButton(hDlg, IDC_UNLIMITED, IDC_LIMITED, IDC_UNLIMITED);
 		SetDlgItemInt(hDlg, IDC_MINUTES, DEFAULT_SONG_LENGTH / 60, FALSE);
@@ -73,8 +80,23 @@ void settingsDialogSet(HWND hDlg, int song_length, int silence_seconds, bool pla
 		CheckDlgButton(hDlg, IDC_MUTE1 + i, ((mute_mask >> i) & 1) != 0 ? BST_CHECKED : BST_UNCHECKED);
 }
 
+int settingsGetSampleRate(HWND hDlg)
+{
+	switch (SendDlgItemMessage(hDlg, IDC_SAMPLERATE, CB_GETCURSEL, 0, 0)) {
+	case 1:
+		return 48000;
+	case 2:
+		return 96000;
+	case 3:
+		return 192000;
+	default:
+		return 44100;
+	}
+}
+
 #ifndef FOOBAR2000
 
+int sample_rate = ASAP_SAMPLE_RATE;
 int song_length = -1;
 int silence_seconds = -1;
 bool play_loops = false;
@@ -105,7 +127,7 @@ INT_PTR CALLBACK settingsDialogProc(HWND hDlg, UINT uMsg, WPARAM wParam, LPARAM 
 	case WM_INITDIALOG:
 		DarkModeSetup(hDlg);
 		saved_mute_mask = mute_mask;
-		settingsDialogSet(hDlg, song_length, silence_seconds, play_loops, mute_mask);
+		settingsDialogSet(hDlg, sample_rate, song_length, silence_seconds, play_loops, mute_mask);
 		return TRUE;
 	case WM_COMMAND:
 		if (HIWORD(wParam) == BN_CLICKED) {
@@ -151,12 +173,13 @@ INT_PTR CALLBACK settingsDialogProc(HWND hDlg, UINT uMsg, WPARAM wParam, LPARAM 
 
 				if (asap != NULL)
 				{
-				ASAP_MutePokeyChannels(asap, mute_mask);
+					ASAP_MutePokeyChannels(asap, mute_mask);
 				}
 				return TRUE;
 			}
 			case IDOK:
 			{
+				sample_rate = settingsGetSampleRate(hDlg);
 				int new_song_length;
 				if (IsDlgButtonChecked(hDlg, IDC_UNLIMITED) == BST_CHECKED)
 					new_song_length = -1;
@@ -176,6 +199,7 @@ INT_PTR CALLBACK settingsDialogProc(HWND hDlg, UINT uMsg, WPARAM wParam, LPARAM 
 				play_loops = (IsDlgButtonChecked(hDlg, IDC_LOOPS) == BST_CHECKED);
 
 				LPCWSTR ini_file = GetPaths()->winamp_ini_file;
+				writeIniInt(TEXT("sample_rate"), sample_rate, ini_file);
 				writeIniInt(TEXT("song_length"), song_length, ini_file);
 				writeIniInt(TEXT("silence_seconds"), silence_seconds, ini_file);
 				writeIniInt(TEXT("play_loops"), play_loops, ini_file);
@@ -194,7 +218,7 @@ INT_PTR CALLBACK settingsDialogProc(HWND hDlg, UINT uMsg, WPARAM wParam, LPARAM 
 
 				if (asap != NULL)
 				{
-				ASAP_MutePokeyChannels(asap, mute_mask);
+					ASAP_MutePokeyChannels(asap, mute_mask);
 				}
 
 				EndDialog(hDlg, IDCANCEL);
@@ -238,11 +262,12 @@ int playSong(const int song)
 	}
 	if (asap != NULL)
 	{
+		ASAP_SetSampleRate(asap, sample_rate);
 		const int duration = getSongDurationInternal(ASAP_GetInfo(asap), song, asap);
 		if (ASAP_PlaySong(asap, song, duration)) /* FIXME: check errors */
-{
-	ASAP_MutePokeyChannels(asap, mute_mask);
-	return duration;
+		{
+			ASAP_MutePokeyChannels(asap, mute_mask);
+			return duration;
 		}
 	}
 	return -1;

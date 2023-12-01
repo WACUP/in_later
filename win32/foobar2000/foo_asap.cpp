@@ -1,10 +1,10 @@
 /*
  * foo_asap.cpp - ASAP plugin for foobar2000
  *
- * Copyright (C) 2006-2022  Piotr Fusik
+ * Copyright (C) 2006-2023  Piotr Fusik
  *
  * This file is part of ASAP (Another Slight Atari Player),
- * see http://asap.sourceforge.net
+ * see https://asap.sourceforge.net
  *
  * ASAP is free software; you can redistribute it and/or modify it
  * under the terms of the GNU General Public License as published
@@ -32,6 +32,7 @@
 
 #define UNICODE /* NOT for info_dlg.h */
 #include "foobar2000/SDK/foobar2000.h"
+#include "foobar2000/SDK/coreDarkMode.h"
 
 #define BITS_PER_SAMPLE    16
 #define BUFFERED_BLOCKS    1024
@@ -40,6 +41,10 @@
 
 static const GUID preferences_guid =
 	{ 0xf7c0a763, 0x7c20, 0x4b64, { 0x92, 0xbf, 0x11, 0xe5, 0x5d, 0x8, 0xe5, 0x53 } };
+
+static const GUID sample_rate_guid =
+	{ 0xb9eb92ed, 0x9172, 0x4b6f, { 0x84, 0x3a, 0xb3, 0x50, 0xcd, 0x22, 0x0f, 0x45 } };
+static cfg_int sample_rate(sample_rate_guid, ASAP_SAMPLE_RATE);
 
 static const GUID song_length_guid =
 	{ 0x810e12f0, 0xa695, 0x42d2, { 0xab, 0xc0, 0x14, 0x1e, 0xe5, 0xf3, 0xb3, 0xb7 } };
@@ -210,6 +215,7 @@ public:
 
 	void decode_initialize(t_uint32 p_subsong, unsigned p_flags, abort_callback &p_abort) const
 	{
+		ASAP_SetSampleRate(asap, sample_rate);
 		int duration = get_song_duration(p_subsong, true);
 		if (!ASAP_PlaySong(asap, p_subsong, duration))
 			throw exception_io_unsupported_format();
@@ -230,7 +236,7 @@ public:
 			BITS_PER_SAMPLE == 8 ? ASAPSampleFormat_U8 : ASAPSampleFormat_S16_L_E);
 		if (buffered_bytes == 0)
 			return false;
-		p_chunk.set_data_fixedpoint(buffer, buffered_bytes, ASAP_SAMPLE_RATE,
+		p_chunk.set_data_fixedpoint(buffer, buffered_bytes, ASAP_GetSampleRate(asap),
 			channels, BITS_PER_SAMPLE,
 			channels == 2 ? audio_chunk::channel_config_stereo : audio_chunk::channel_config_mono);
 		return true;
@@ -286,7 +292,7 @@ static INT_PTR CALLBACK settings_dialog_proc(HWND hDlg, UINT uMsg, WPARAM wParam
 {
 	switch (uMsg) {
 	case WM_INITDIALOG:
-		settingsDialogSet(hDlg, song_length, silence_seconds, play_loops, mute_mask);
+		settingsDialogSet(hDlg, sample_rate, song_length, silence_seconds, play_loops, mute_mask);
 		return TRUE;
 	case WM_COMMAND:
 		switch (wParam) {
@@ -308,6 +314,7 @@ static INT_PTR CALLBACK settings_dialog_proc(HWND hDlg, UINT uMsg, WPARAM wParam
 			g_callback->on_state_changed();
 			return TRUE;
 		}
+		case MAKEWPARAM(IDC_SAMPLERATE, CBN_SELCHANGE):
 		case MAKEWPARAM(IDC_MINUTES, EN_CHANGE):
 		case MAKEWPARAM(IDC_SECONDS, EN_CHANGE):
 		case MAKEWPARAM(IDC_SILSECONDS, EN_CHANGE):
@@ -337,6 +344,7 @@ class preferences_page_instance_asap : public preferences_page_instance
 {
 	const HWND m_parent;
 	const HWND m_hWnd;
+	fb2k::CCoreDarkModeHooks m_dark;
 
 	int get_time_input() const
 	{
@@ -376,17 +384,19 @@ public:
 	preferences_page_instance_asap(HWND parent) : m_parent(parent),
 		m_hWnd(CreateDialog(core_api::get_my_instance(), MAKEINTRESOURCE(IDD_SETTINGS), parent, ::settings_dialog_proc))
 	{
+		m_dark.AddDialogWithControls(m_hWnd);
 	}
 
 	t_uint32 get_state() override
 	{
-		if (song_length != get_time_input()
+		if (sample_rate != settingsGetSampleRate(m_hWnd)
+		 || song_length != get_time_input()
 		 || silence_seconds != get_silence_input()
 		 || play_loops != get_loops_input())
-			return preferences_state::changed /* | preferences_state::needs_restart_playback */ | preferences_state::resettable;
+			return preferences_state::changed /* | preferences_state::needs_restart_playback */ | preferences_state::resettable | preferences_state::dark_mode_supported;
 		if (mute_mask != get_mute_input())
-			return preferences_state::changed | preferences_state::resettable;
-		return preferences_state::resettable;
+			return preferences_state::changed | preferences_state::resettable | preferences_state::dark_mode_supported;
+		return preferences_state::resettable | preferences_state::dark_mode_supported;
 	}
 
 	HWND get_wnd() override
@@ -396,6 +406,7 @@ public:
 
 	void apply() override
 	{
+		sample_rate = settingsGetSampleRate(m_hWnd);
 		song_length = get_time_input();
 		silence_seconds = get_silence_input();
 		play_loops = get_loops_input();
@@ -405,7 +416,7 @@ public:
 
 	void reset() override
 	{
-		settingsDialogSet(m_hWnd, -1, -1, FALSE, 0);
+		settingsDialogSet(m_hWnd, ASAP_SAMPLE_RATE, -1, -1, FALSE, 0);
 		g_callback->on_state_changed();
 	}
 };
@@ -437,7 +448,7 @@ public:
 
 	bool get_help_url(pfc::string_base &p_out) override
 	{
-		p_out = "http://asap.sourceforge.net/";
+		p_out = "https://asap.sourceforge.net/";
 		return true;
 	}
 };
@@ -495,6 +506,19 @@ static service_factory_single_t<input_file_type_asap> g_input_file_type_asap_fac
 
 
 /* Info window ----------------------------------------------------------- */
+
+static std::unique_ptr<fb2k::CCoreDarkModeHooks> g_darkInfoDialog;
+
+extern "C" void setDarkInfoDialog(HWND hDlg)
+{
+	g_darkInfoDialog = std::make_unique<fb2k::CCoreDarkModeHooks>();
+	g_darkInfoDialog->AddDialogWithControls(hDlg);
+}
+
+extern "C" void releaseDarkInfoDialog()
+{
+	g_darkInfoDialog.reset();
+}
 
 class info_menu : public mainmenu_commands
 {

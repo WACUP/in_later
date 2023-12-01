@@ -1,6 +1,6 @@
 // flashpack.fu - Atari 8-bit executable compression
 //
-// Copyright (C) 2011-2021  Piotr Fusik
+// Copyright (C) 2011-2023  Piotr Fusik
 //
 // This file is part of ASAP (Another Slight Atari Player),
 // see http://asap.sourceforge.net
@@ -70,15 +70,15 @@ class FlashPack
 
 	const int MinLoadAddress = 0x2000; // safe for most of Atari DOSes
 
-	int FindHole()
-		throws
+	ushort FindHole()
+		throws ASAPConversionException
 	{
 		const int holeSize = 0x400; // FIXME: just a guess
 		int end = 0xbc1f; // below the Display List for standard text mode
 		for (;;) {
 			while (Memory[end] >= 0)
 				if (--end < MinLoadAddress + holeSize)
-					throw "Too much data to compress";
+					throw ASAPConversionException("Too much data to compress");
 			int start = end;
 			while (Memory[--start] < 0)
 				if (end - start >= holeSize - 1)
@@ -253,7 +253,7 @@ class FlashPack
 	}
 
 	internal void Compress!(ASAPWriter! w)
-		throws
+		throws ASAPConversionException
 	{
 		// Load executable from w.Output up to w.OutputOffset into Memory
 		for (int i = 0; i < 65536; i++)
@@ -266,18 +266,18 @@ class FlashPack
 			}
 			int endAddress = w.Output[i + 2] + (w.Output[i + 3] << 8);
 			if (startAddress > endAddress)
-				throw "Start address greater than end address";
+				throw ASAPConversionException("Start address greater than end address");
 			i += 4;
 			if (i + endAddress - startAddress >= w.OutputOffset)
-				throw "Truncated block";
+				throw ASAPConversionException("Truncated block");
 			while (startAddress <= endAddress)
 				Memory[startAddress++] = w.Output[i++];
 		}
 
 		if (Memory[0x2e0] < 0 || Memory[0x2e1] < 0)
-			throw "Missing run address";
+			throw ASAPConversionException("Missing run address");
 		if (Memory[0xfc] >= 0 || Memory[0xfd] >= 0 || Memory[0xfe] >= 0 || Memory[0xff] >= 0)
-			throw "Conflict with decompressor variables";
+			throw ASAPConversionException("Conflict with decompressor variables");
 		int runAddress = Memory[0x2e0] + (Memory[0x2e1] << 8);
 		Memory[0x2e0] = Memory[0x2e1] = -1;
 
@@ -297,7 +297,7 @@ class FlashPack
 		int depackerStartAddress = depackerEndAddress - (0x58 - 1);
 		int compressedStartAddress = depackerStartAddress - CompressedLength;
 		if (compressedStartAddress < MinLoadAddress)
-			throw "Too much compressed data";
+			throw ASAPConversionException("Too much compressed data");
 		w.OutputOffset = 0;
 		w.WriteWord(0xffff);
 		// turn off the built-in BASIC

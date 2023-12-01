@@ -1,7 +1,7 @@
 /*
  * xmp-asap.c - ASAP plugin for XMPlay
  *
- * Copyright (C) 2010-2019  Piotr Fusik
+ * Copyright (C) 2010-2023  Piotr Fusik
  *
  * This file is part of ASAP (Another Slight Atari Player),
  * see http://asap.sourceforge.net
@@ -74,6 +74,7 @@ static void WINAPI ASAP_About(HWND win)
 static void WINAPI ASAP_Config(HWND win)
 {
 	if (settingsDialog(hInst, win)) {
+		xmpfreg->SetInt("ASAP", "SampleRate", &sample_rate);
 		xmpfreg->SetInt("ASAP", "SongLength", &song_length);
 		xmpfreg->SetInt("ASAP", "SilenceSeconds", &silence_seconds);
 		SetBool("PlayLoops", play_loops);
@@ -159,7 +160,7 @@ static void WINAPI ASAP_Close()
 
 static void WINAPI ASAP_SetFormat(XMPFORMAT *form)
 {
-	form->rate = ASAP_SAMPLE_RATE;
+	form->rate = ASAP_GetSampleRate(asap);
 	form->chan = ASAPInfo_GetChannels(ASAP_GetInfo(asap));
 	form->res = BITS_PER_SAMPLE / 8;
 }
@@ -346,6 +347,7 @@ __declspec(dllexport) XMPIN *WINAPI XMPIN_GetInterface(DWORD face, InterfaceProc
 	asap = ASAP_New();
 
 	xmpfmisc->RegisterShortcut(&info_shortcut);
+	xmpfreg->GetInt("ASAP", "SampleRate", &sample_rate);
 	xmpfreg->GetInt("ASAP", "SongLength", &song_length);
 	xmpfreg->GetInt("ASAP", "SilenceSeconds", &silence_seconds);
 	GetBool("PlayLoops", &play_loops);

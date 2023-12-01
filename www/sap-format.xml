@@ -122,12 +122,11 @@ DATE "199?"
 			<p>The last example represents some unknown year in the 1990s.</p>
 		</dd>
 
-		<dt>SONG</dt>
+		<dt>SONGS</dt>
 		<dd>
 			<p>Number of subsongs in the file.
 			If there is just one song in the file, it is recommended to omit this tag.
-			ASAP currently limits the number of songs to 32.
-			The largest known number of songs in a SAP file is 20.</p>
+			ASAP currently limits the number of songs to 32.</p>
 		</dd>
 
 		<dt>DEFSONG</dt>

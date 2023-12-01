@@ -1,8 +1,6 @@
-JAVA_SDK = "C:/Program Files/Java/jdk-20"
-
 JAVAC = $(DO)javac
-JAR = $(DO)$(JAVA_SDK)/bin/jar
-JAVADOC = $(DO)$(JAVA_SDK)/bin/javadoc
+JAR = $(DO)jar
+JAVADOC = $(DO)javadoc
 
 # no user-configurable paths below this line
 
