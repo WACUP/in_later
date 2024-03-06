@@ -6,15 +6,25 @@
 
 static void FuString_Assign(char **str, char *value)
 {
-	free(*str);
-	*str = value;
+	if (str)
+	{
+		if (*str)
+		{
+			free(*str);
+		}
+
+		*str = value;
+	}
 }
 
 static char *FuString_Substring(const char *str, int len)
 {
 	char *p = malloc(len + 1);
-	memcpy(p, str, len);
-	p[len] = '\0';
+	if (p)
+	{
+		memcpy(p, str, len);
+		p[len] = '\0';
+	}
 	return p;
 }
 
@@ -29,15 +39,19 @@ typedef struct {
 static void *FuShared_Make(size_t count, size_t unitSize, FuMethodPtr constructor, FuMethodPtr destructor)
 {
 	FuShared *self = (FuShared *) malloc(sizeof(FuShared) + count * unitSize);
-	self->count = count;
-	self->unitSize = unitSize;
-	self->refCount = 1;
-	self->destructor = destructor;
-	if (constructor != NULL) {
-		for (size_t i = 0; i < count; i++)
-			constructor((char *) (self + 1) + i * unitSize);
+	if (self)
+	{
+		self->count = count;
+		self->unitSize = unitSize;
+		self->refCount = 1;
+		self->destructor = destructor;
+		if (constructor != NULL) {
+			for (size_t i = 0; i < count; i++)
+				constructor((char*)(self + 1) + i * unitSize);
+		}
+		return self + 1;
 	}
-	return self + 1;
+	return NULL;
 }
 
 static void FuShared_Release(void *ptr)
@@ -3231,8 +3245,8 @@ static void ASAPInfo_ParseRmtSong(ASAPInfo *self, uint8_t const *module, bool *g
 	int patternHiOffset = ASAPInfo_GetWord(module, 18) - addrToOffset;
 	uint8_t seen[256] = { 0 };
 	int patternBegin[8];
-	int patternOffset[8];
-	int blankRows[8];
+	int patternOffset[8] = { 0 };
+	int blankRows[8] = { 0 };
 	int instrumentNo[8] = { 0 };
 	int instrumentFrame[8] = { 0 };
 	int volumeValue[8] = { 0 };
@@ -4043,84 +4057,87 @@ static int ASAPInfo_GuessPackedExt(uint8_t const *module, int moduleLen)
 
 bool ASAPInfo_Load(ASAPInfo *self, const char *filename, uint8_t const *module, int moduleLen)
 {
-	int ext;
-	if (filename != NULL) {
-		int len = (int) strlen(filename);
-		int basename = 0;
-		ext = -1;
-		for (int i = len; --i >= 0;) {
-			int c = filename[i];
-			if (c == '/' || c == '\\') {
-				basename = i + 1;
-				break;
+	if (self) {
+		int ext;
+		if (filename != NULL) {
+			int len = (int) strlen(filename);
+			int basename = 0;
+			ext = -1;
+			for (int i = len; --i >= 0;) {
+				int c = filename[i];
+				if (c == '/' || c == '\\') {
+					basename = i + 1;
+					break;
+				}
+				if (c == '.')
+					ext = i;
 			}
-			if (c == '.')
-				ext = i;
+			if (ext < 0)
+				return false;
+			ext -= basename;
+			if (ext > 127)
+				ext = 127;
+			FuString_Assign(&self->filename, FuString_Substring(filename + basename, ext));
+			ext = ASAPInfo_GetPackedExt(filename);
 		}
-		if (ext < 0)
+		else {
+			FuString_Assign(&self->filename, _strdup(""));
+			if ((ext = ASAPInfo_GuessPackedExt(module, moduleLen)) == -1)
+				return false;
+		}
+		FuString_Assign(&self->author, _strdup(""));
+		FuString_Assign(&self->title, _strdup(""));
+		FuString_Assign(&self->date, _strdup(""));
+		self->channels = 1;
+		self->songs = 1;
+		self->defaultSong = 0;
+		for (int i = 0; i < 32; i++) {
+			self->durations[i] = -1;
+			self->loops[i] = false;
+		}
+		self->ntsc = false;
+		self->fastplay = 312;
+		self->music = -1;
+		self->init = -1;
+		self->player = -1;
+		self->covoxAddr = -1;
+		self->headerLen = 0;
+		switch (ext) {
+		case 7364979:
+			return ASAPInfo_ParseSap(self, module, moduleLen);
+		case 6516067:
+			return ASAPInfo_ParseCmc(self, module, moduleLen, ASAPModuleType_CMC);
+		case 3370339:
+			return ASAPInfo_ParseCmc(self, module, moduleLen, ASAPModuleType_CM3);
+		case 7499107:
+			return ASAPInfo_ParseCmc(self, module, moduleLen, ASAPModuleType_CMR);
+		case 7564643:
+			self->channels = 2;
+			return ASAPInfo_ParseCmc(self, module, moduleLen, ASAPModuleType_CMS);
+		case 6516068:
+			self->fastplay = 156;
+			return ASAPInfo_ParseCmc(self, module, moduleLen, ASAPModuleType_CMC);
+		case 7629924:
+			return ASAPInfo_ParseDlt(self, module, moduleLen);
+		case 7630957:
+			return ASAPInfo_ParseMpt(self, module, moduleLen);
+		case 6582381:
+			self->fastplay = 156;
+			return ASAPInfo_ParseMpt(self, module, moduleLen);
+		case 7630194:
+			return ASAPInfo_ParseRmt(self, module, moduleLen);
+		case 6516084:
+		case 3698036:
+			return ASAPInfo_ParseTmc(self, module, moduleLen);
+		case 3304820:
+			return ASAPInfo_ParseTm2(self, module, moduleLen);
+		case 2122598:
+			return ASAPInfo_ParseFc(self, module, moduleLen);
+		default:
 			return false;
-		ext -= basename;
-		if (ext > 127)
-			ext = 127;
-		FuString_Assign(&self->filename, FuString_Substring(filename + basename, ext));
-		ext = ASAPInfo_GetPackedExt(filename);
+		}
 	}
-	else {
-		FuString_Assign(&self->filename, _strdup(""));
-		if ((ext = ASAPInfo_GuessPackedExt(module, moduleLen)) == -1)
-			return false;
-	}
-	FuString_Assign(&self->author, _strdup(""));
-	FuString_Assign(&self->title, _strdup(""));
-	FuString_Assign(&self->date, _strdup(""));
-	self->channels = 1;
-	self->songs = 1;
-	self->defaultSong = 0;
-	for (int i = 0; i < 32; i++) {
-		self->durations[i] = -1;
-		self->loops[i] = false;
-	}
-	self->ntsc = false;
-	self->fastplay = 312;
-	self->music = -1;
-	self->init = -1;
-	self->player = -1;
-	self->covoxAddr = -1;
-	self->headerLen = 0;
-	switch (ext) {
-	case 7364979:
-		return ASAPInfo_ParseSap(self, module, moduleLen);
-	case 6516067:
-		return ASAPInfo_ParseCmc(self, module, moduleLen, ASAPModuleType_CMC);
-	case 3370339:
-		return ASAPInfo_ParseCmc(self, module, moduleLen, ASAPModuleType_CM3);
-	case 7499107:
-		return ASAPInfo_ParseCmc(self, module, moduleLen, ASAPModuleType_CMR);
-	case 7564643:
-		self->channels = 2;
-		return ASAPInfo_ParseCmc(self, module, moduleLen, ASAPModuleType_CMS);
-	case 6516068:
-		self->fastplay = 156;
-		return ASAPInfo_ParseCmc(self, module, moduleLen, ASAPModuleType_CMC);
-	case 7629924:
-		return ASAPInfo_ParseDlt(self, module, moduleLen);
-	case 7630957:
-		return ASAPInfo_ParseMpt(self, module, moduleLen);
-	case 6582381:
-		self->fastplay = 156;
-		return ASAPInfo_ParseMpt(self, module, moduleLen);
-	case 7630194:
-		return ASAPInfo_ParseRmt(self, module, moduleLen);
-	case 6516084:
-	case 3698036:
-		return ASAPInfo_ParseTmc(self, module, moduleLen);
-	case 3304820:
-		return ASAPInfo_ParseTm2(self, module, moduleLen);
-	case 2122598:
-		return ASAPInfo_ParseFc(self, module, moduleLen);
-	default:
-		return false;
-	}
+	return false;
 }
 
 static bool ASAPInfo_CheckValidText(const char *s)
@@ -7443,7 +7460,7 @@ static void PokeyPair_Construct(PokeyPair *self)
 		double sincSum = 0;
 		double leftSum = 0;
 		double norm = 0;
-		double sinc[31];
+		double sinc[31] = { 0 };
 		for (int j = -32; j < 32; j++) {
 			if (j == -16)
 				leftSum = sincSum;

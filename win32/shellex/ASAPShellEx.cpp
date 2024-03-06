@@ -601,7 +601,7 @@ STDAPI __declspec(dllexport) DllUnregisterServer()
 	return S_OK;
 }
 
-STDAPI __declspec(dllexport) DllGetClassObject(REFCLSID rclsid, REFIID riid, LPVOID *ppv)
+STDAPI __declspec(dllexport) DllGetClassObject(REFCLSID rclsid, REFIID riid, LPVOID* ppv)
 {
 	if (ppv == nullptr)
 		return E_INVALIDARG;

@@ -21,8 +21,7 @@ WIN64_CXX = $(DO)x86_64-w64-mingw32-g++ $(WIN32_CARGS) -std=c++20 $(filter-out %
 WIN64_WINDRES = $(DO)x86_64-w64-mingw32-windres -o $@ $<
 
 # Windows Installer XML
-CANDLE = $(DO)candle -nologo -o $@
-LIGHT = $(DO)light -nologo -o $@ -spdb
+WIX = $(DO)wix
 
 # Code signing
 DO_SIGN = $(DO)signtool sign -d "ASAP - Another Slight Atari Player $(VERSION)" -n "Open Source Developer, Piotr Fusik" -tr http://time.certum.pl -fd sha256 -td sha256 $^ && touch $@
@@ -275,23 +274,13 @@ CLEAN += win32/shellex/asap-infowriter.cpp win32/shellex/asap-infowriter.hpp
 win32/setup: release/asap-$(VERSION)-win32.msi
 .PHONY: win32/setup
 
-release/asap-$(VERSION)-win32.msi: win32/setup/asap.wixobj \
-	$(call src,win32/wasap/wasap.ico win32/setup/license.rtf win32/setup/asap-banner.jpg win32/setup/asap-dialog.jpg win32/diff-sap.js win32/shellex/ASAPShellEx.propdesc) \
+release/asap-$(VERSION)-win32.msi: $(call src,win32/setup/asap.wxs release/release.mk win32/wasap/wasap.ico win32/setup/license.rtf win32/setup/asap-banner.jpg win32/setup/asap-dialog.jpg win32/diff-sap.js win32/shellex/ASAPShellEx.propdesc) \
 	$(addprefix win32/,asapconv.exe sap2txt.exe wasap.exe in_asap.dll xmp-asap.dll bass_asap.dll apokeysnd.dll ASAPShellEx.dll foo_asap.dll libasap_plugin.dll signed)
-	$(LIGHT) -ext WixUIExtension -sice:ICE69 -b win32 -b release -b $(srcdir)win32/setup -b $(srcdir)win32 $<
+	$(WIX) build -o $@ -d VERSION=$(VERSION) -ext WixToolset.UI.wixext -b win32 -b release -b $(srcdir)win32/setup -b $(srcdir)win32 $<
 
-win32/setup/asap.wixobj: $(srcdir)win32/setup/asap.wxs release/release.mk
-	$(CANDLE) -dVERSION=$(VERSION) $<
-CLEAN += win32/setup/asap.wixobj
-
-release/asap-$(VERSION)-win64.msi: win32/x64/asap.wixobj \
-	$(call src,win32/wasap/wasap.ico win32/setup/license.rtf win32/setup/asap-banner.jpg win32/setup/asap-dialog.jpg win32/shellex/ASAPShellEx.propdesc) \
+release/asap-$(VERSION)-win64.msi: $(call src,win32/setup/asap.wxs release/release.mk win32/wasap/wasap.ico win32/setup/license.rtf win32/setup/asap-banner.jpg win32/setup/asap-dialog.jpg win32/shellex/ASAPShellEx.propdesc) \
 	$(addprefix win32/x64/,bass_asap.dll ASAPShellEx.dll foo_asap.dll libasap_plugin.dll) win32/signed
-	$(LIGHT) -ext WixUIExtension -sice:ICE69 -b win32 -b $(srcdir)/win32/setup -b $(srcdir)win32 $<
-
-win32/x64/asap.wixobj: $(srcdir)win32/setup/asap.wxs release/release.mk
-	$(CANDLE) -arch x64 -dVERSION=$(VERSION) $<
-CLEAN += win32/x64/asap.wixobj
+	$(WIX) build -o $@ -d VERSION=$(VERSION) -ext WixToolset.UI.wixext -b win32 -arch x64 -b $(srcdir)/win32/setup -b $(srcdir)win32 $<
 
 win32/signed: $(addprefix win32/,asapconv.exe sap2txt.exe wasap.exe in_asap.dll xmp-asap.dll bass_asap.dll apokeysnd.dll ASAPShellEx.dll foo_asap.dll libasap_plugin.dll x64/bass_asap.dll x64/ASAPShellEx.dll x64/foo_asap.dll x64/libasap_plugin.dll)
 	$(DO_SIGN)

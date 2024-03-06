@@ -80,7 +80,6 @@ static volatile bool thread_run = false;
 static bool paused = false;
 static int seek_needed;
 
-static ASAPInfo *title_info, *playlist_info;
 //static int title_song;
 
 LPCTSTR atrFilenameHash(LPCTSTR filename);
@@ -139,7 +138,7 @@ static void about(HWND hwndParent)
 	wchar_t message[1024] = { 0 }, title[1024] = { 0 };
 	// TODO localise
 	StringCchPrintf(message, ARRAYSIZE(message), TEXT("%s\n\n%hs\nWACUP related "
-					"modifications by Darren Owen aka DrO (%s)\n\nBuild date: %s"
+					"modifications by " WACUP_AUTHOR_STR " (%s)\n\nBuild date: %s"
 					"\n\n%hs"), (wchar_t*)plugin.description, ASAPInfo_CREDITS,
 					WACUP_COPYRIGHT, TEXT(__DATE__), ASAPInfo_COPYRIGHT);
 	AboutMessageBox(hwndParent, message, L"ASAP Decoder");
@@ -394,8 +393,8 @@ static int isOurFile(const in_char *fn)
 	if (!IsAnUrl(fn))
 	{
 		wchar_t filename[FILENAME_SIZE] = { 0 };
-	extractSongNumber(fn, filename);
-	LPCWSTR ext = FindPathExtension(filename);
+		extractSongNumber(fn, filename);
+		LPCWSTR ext = FindPathExtension(filename);
 		if (ext)
 		{
 			AutoChar ext8(ext);
@@ -540,8 +539,12 @@ static void stop(void)
 		thread_run = false;
 		// wait max 10 seconds
 		WaitForSingleObjectEx(thread_handle, 10 * 1000, TRUE);
-		CloseHandle(thread_handle);
-		thread_handle = NULL;
+
+		if (thread_handle != NULL)
+		{
+			CloseHandle(thread_handle);
+			thread_handle = NULL;
+		}
 	}
 
 	plugin.outMod->Close();
@@ -622,7 +625,7 @@ In_Module plugin = {
 	setVolume,
 	setPan,
 	0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, // filled by Winamp
-	NULL,
+	IN_INIT_WACUP_EQSET_EMPTY
 	NULL,	// SetInfo
 	NULL,	// filled by Winamp
 	NULL,	// api_service
@@ -982,12 +985,14 @@ extern "C" __declspec(dllexport) int winampGetExtendedFileInfoW(const wchar_t *f
 		AutoChar hash(hashW);
 		AutoCharFn file(filename);
 
+		static ASAPInfo *title_info;
 		if (title_info == NULL)
 		{
 			title_info = ASAPInfo_New();
 		}
 
-		if (ASAPInfo_Load(title_info, hash != NULL ? hash + 1 : file, title_module, title_module_len))
+		if (ASAPInfo_Load(title_info, hash != NULL ? hash + 1 :
+						  file, title_module, title_module_len))
 		{
 			return get_metadata(file, title_info, title_song, title_module,
 									title_module_len, data, dest, destlen);
@@ -1080,32 +1085,48 @@ extern "C" __declspec(dllexport) void winampGetExtendedRead_close(intptr_t handl
 	}
 }
 
+const int get_songs_count(const char* fn, const wchar_t* inside_fn, AATRRecursiveLister* lister, AATRFileStream* stream, int *songs)
+{
+	if (ASAPInfo_IsOurFile(fn))
+	{
+		ASAPInfo* playlist_info = ASAPInfo_New();
+		if (playlist_info != NULL)
+		{
+			if (lister != NULL)
+			{
+				AATRFileStream_Open(stream, AATRRecursiveLister_GetDirectory(lister));
+			}
+
+			BYTE* playlist_module = (BYTE*)plugin.memmgr->sysMalloc(ASAPInfo_MAX_MODULE_LENGTH);
+			if (playlist_module != NULL)
+			{
+				int playlist_module_len = (lister ? AATRFileStream_Read(stream, playlist_module, 0,
+																  ASAPInfo_MAX_MODULE_LENGTH) : 0);
+
+				if ((!lister ? loadModule(inside_fn, playlist_module, &playlist_module_len) : true) &&
+							   ASAPInfo_Load(playlist_info, fn, playlist_module, playlist_module_len))
+				{
+					if (songs)
+					{
+						*songs += ASAPInfo_GetSongs(playlist_info);
+					}
+				}
+				plugin.memmgr->sysFree(playlist_module);
+			}
+			ASAPInfo_Delete(playlist_info);
+			return true;
+		}
+	}
+	return false;
+}
+
 extern "C" __declspec(dllexport) int GetSubSongInfo(const wchar_t* filename)
 {
 	wchar_t inside_fn[MAX_PATH] = { 0 };
 	extractSongNumber(filename, inside_fn);
 	int songs = 0;
 	AutoCharFn fn(inside_fn);
-	if (ASAPInfo_IsOurFile(fn))
-	{
-		if (playlist_info == NULL)
-		{
-			playlist_info = ASAPInfo_New();
-		}
-
-		int playlist_module_len = 0;
-		BYTE* playlist_module = (BYTE*)plugin.memmgr->sysMalloc(ASAPInfo_MAX_MODULE_LENGTH);
-		if (loadModule(inside_fn, playlist_module, &playlist_module_len) &&
-			ASAPInfo_Load(playlist_info, fn, playlist_module, playlist_module_len))
-		{
-			songs = ASAPInfo_GetSongs(playlist_info);
-		}
-
-		ASAPInfo_Delete(playlist_info);
-		playlist_info = NULL;
-		plugin.memmgr->sysFree(playlist_module);
-	}
-	else if (isATR(filename))
+	if (!get_songs_count(fn, inside_fn, NULL, NULL, &songs) && isATR(filename))
 	{
 		AATR *disk = AATRStdio_New(fn);
 		if (disk != NULL) {
@@ -1123,27 +1144,7 @@ extern "C" __declspec(dllexport) int GetSubSongInfo(const wchar_t* filename)
 						{
 							break;
 						}
-
-						if (ASAPInfo_IsOurFile(inside_fn))
-						{
-							if (playlist_info == NULL)
-							{
-								playlist_info = ASAPInfo_New();
-							}
-
-							AATRFileStream_Open(stream, AATRRecursiveLister_GetDirectory(lister));
-							BYTE* playlist_module = (BYTE*)plugin.memmgr->sysMalloc(ASAPInfo_MAX_MODULE_LENGTH);
-							const int playlist_module_len = AATRFileStream_Read(stream, playlist_module, 0,
-																				ASAPInfo_MAX_MODULE_LENGTH);
-							if (ASAPInfo_Load(playlist_info, inside_fn, playlist_module, playlist_module_len))
-							{
-								songs += ASAPInfo_GetSongs(playlist_info);
-							}
-
-							ASAPInfo_Delete(playlist_info);
-							playlist_info = NULL;
-							plugin.memmgr->sysFree(playlist_module);
-						}
+						songs += get_songs_count(fn, NULL, lister, stream, &songs);
 					}
 					AATRFileStream_Delete(stream);
 				}

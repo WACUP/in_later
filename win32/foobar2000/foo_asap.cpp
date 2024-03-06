@@ -252,6 +252,13 @@ public:
 		return true;
 	}
 
+	bool decode_get_dynamic_info_track(file_info &p_out, double &p_timestamp_delta) const
+	{
+		p_out.info_set_int("samplerate", ASAP_GetSampleRate(asap));
+		p_timestamp_delta = 0;
+		return true;
+	}
+
 	void retag_set_info(t_uint32 p_subsong, const file_info &p_info, abort_callback &p_abort)
 	{
 		set_tags(meta_get(p_info, "composer"), meta_get(p_info, "title"), meta_get(p_info, "date"));
@@ -686,7 +693,7 @@ public:
 	{
 		t_filestats2 stats;
 		if (s2flags & stats2_size) {
-			service_impl_single_t<file_atr> f(p_archive, p_file);
+		service_impl_single_t<file_atr> f(p_archive, p_file);
 			stats.m_size = f.get_size(p_abort);
 		}
 		stats.set_file();

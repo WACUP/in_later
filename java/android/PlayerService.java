@@ -27,6 +27,7 @@ import android.app.Notification;
 import android.app.NotificationChannel;
 import android.app.NotificationManager;
 import android.app.PendingIntent;
+import android.app.SearchManager;
 import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
@@ -133,31 +134,31 @@ public class PlayerService extends MediaBrowserService implements Runnable, Audi
 
 	private final ArrayList<Uri> playlist = new ArrayList<Uri>();
 
-	private void setPlaylist()
-	{
-		playlist.clear();
-		if ("asma".equals(uri.getScheme())) {
-			FileInfo[] infos = FileInfo.listIndex(this, null);
-			for (int i = 1 /* skip "shuffle all" */; i < infos.length; i++)
-				playlist.add(Util.getAsmaUri(infos[i].filename));
-			if (uri.getSchemeSpecificPart().isEmpty()) { // shuffle all
-				Collections.shuffle(playlist);
-				uri = playlist.get(0);
-			}
-		}
-		else
-			playlist.add(uri);
-	}
-
 	private boolean setSearchPlaylist(String query)
 	{
 		FileInfo[] infos = FileInfo.listIndex(this, query);
 		if (infos.length == 0)
 			return false;
 		playlist.clear();
-		for (FileInfo info : infos)
-			playlist.add(Util.getAsmaUri(info.filename));
+		for (FileInfo info : infos) {
+			if (info != FileInfo.SHUFFLE_ALL)
+				playlist.add(Util.getAsmaUri(info.filename));
+		}
 		return true;
+	}
+
+	private void setPlaylist(String query)
+	{
+		if ("asma".equals(uri.getScheme()) && setSearchPlaylist(query)) {
+			if (uri.getSchemeSpecificPart().isEmpty()) { // shuffle all
+				Collections.shuffle(playlist);
+				uri = playlist.get(0);
+			}
+		}
+		else {
+			playlist.clear();
+			playlist.add(uri);
+		}
 	}
 
 	private int getPlaylistIndex()
@@ -216,12 +217,14 @@ public class PlayerService extends MediaBrowserService implements Runnable, Audi
 	{
 		// read file
 		String filename;
+		boolean loop;
 		byte[] module = new byte[ASAPInfo.MAX_MODULE_LENGTH];
 		int moduleLen = 0;
 		try {
 			InputStream stream;
 			if ("asma".equals(uri.getScheme())) {
 				filename = uri.getSchemeSpecificPart();
+				loop = false;
 				stream = getAssets().open(filename);
 			}
 			else {
@@ -240,6 +243,7 @@ public class PlayerService extends MediaBrowserService implements Runnable, Audi
 				finally {
 					cursor.close();
 				}
+				loop = true;
 				stream = getContentResolver().openInputStream(uri);
 			}
 
@@ -279,9 +283,9 @@ public class PlayerService extends MediaBrowserService implements Runnable, Audi
 			default:
 				break;
 			}
-			asap.playSong(song, info.getDuration(song));
+			asap.playSong(song, loop && songs == 1 ? -1 : info.getDuration(song));
 		}
-		catch (Exception ex) {
+		catch (ASAPFormatException|ASAPArgumentException ex) {
 			showError(R.string.invalid_file);
 			return false;
 		}
@@ -399,7 +403,7 @@ public class PlayerService extends MediaBrowserService implements Runnable, Audi
 			try {
 				asap.seek(pos);
 			}
-			catch (Exception ex) {
+			catch (ASAPFormatException ex) {
 			}
 			setPlaybackState(PlaybackState.STATE_PLAYING, asap.getPosition(), 1, PlaybackState.ACTION_PAUSE | COMMON_ACTIONS);
 		}
@@ -603,7 +607,7 @@ public class PlayerService extends MediaBrowserService implements Runnable, Audi
 			default:
 				break;
 			}
-			setPlaylist();
+			setPlaylist(intent.getStringExtra(SearchManager.QUERY));
 			setCommand(COMMAND_LOAD);
 			break;
 		case ACTION_PLAY:

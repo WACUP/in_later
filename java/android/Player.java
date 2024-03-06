@@ -116,11 +116,12 @@ class FileInfoAdapter extends ArrayAdapter<FileInfo>
 
 public class Player extends ListActivity
 {
+	private String listQuery;
 	private String playingFilename;
 	private int playingSong;
-	private void play(Uri uri)
+	private void play(Uri uri, String query)
 	{
-		startService(new Intent(Intent.ACTION_VIEW, uri, this, PlayerService.class));
+		startService(new Intent(Intent.ACTION_VIEW, uri, this, PlayerService.class).putExtra(SearchManager.QUERY, query));
 	}
 
 	private void setButtonAction(int controlId, String action)
@@ -288,12 +289,12 @@ public class Player extends ListActivity
 		Intent intent = getIntent();
 		if (Intent.ACTION_VIEW.equals(intent.getAction())) {
 			finish();
-			play(intent.getData());
+			play(intent.getData(), null);
 		}
 		else {
 			setContentView(R.layout.player);
-			String query = Intent.ACTION_SEARCH.equals(intent.getAction()) ? intent.getStringExtra(SearchManager.QUERY) : null;
-			setListAdapter(new FileInfoAdapter(this, R.layout.fileinfo_list_item, FileInfo.listIndex(this, query)));
+			listQuery = Intent.ACTION_SEARCH.equals(intent.getAction()) ? intent.getStringExtra(SearchManager.QUERY) : null;
+			setListAdapter(new FileInfoAdapter(this, R.layout.fileinfo_list_item, FileInfo.listIndex(this, listQuery)));
 			setButtonAction(R.id.prev, PlayerService.ACTION_PREVIOUS);
 			setButtonAction(R.id.play, PlayerService.ACTION_PLAY);
 			setButtonAction(R.id.pause, PlayerService.ACTION_PAUSE);
@@ -333,7 +334,7 @@ public class Player extends ListActivity
 	protected void onListItemClick(ListView l, View v, int position, long id)
 	{
 		FileInfo info = (FileInfo) l.getItemAtPosition(position);
-		play(info == FileInfo.SHUFFLE_ALL ? Util.asmaRoot : Util.getAsmaUri(info.filename));
+		play(info == FileInfo.SHUFFLE_ALL ? Util.asmaRoot : Util.getAsmaUri(info.filename), listQuery);
 	}
 
 	private static final int OPEN_REQUEST_CODE = 1;
@@ -357,6 +358,6 @@ public class Player extends ListActivity
 	protected void onActivityResult(int requestCode, int resultCode, Intent data)
 	{
 		if (requestCode == OPEN_REQUEST_CODE && resultCode == RESULT_OK && data != null)
-			play(data.getData());
+			play(data.getData(), null);
 	}
 }

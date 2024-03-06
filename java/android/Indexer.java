@@ -1,7 +1,7 @@
 /*
  * Indexer.java - prepares text-file index of SAP files
  *
- * Copyright (C) 2014  Piotr Fusik
+ * Copyright (C) 2014-2023  Piotr Fusik
  *
  * This file is part of ASAP (Another Slight Atari Player),
  * see http://asap.sourceforge.net
@@ -27,6 +27,7 @@ import java.io.InputStream;
 import java.io.IOException;
 import java.util.Arrays;
 
+import net.sf.asap.ASAPFormatException;
 import net.sf.asap.ASAPInfo;
 
 class Indexer
@@ -58,7 +59,7 @@ class Indexer
 		return got;
 	}
 
-	private static void process(File dir) throws Exception
+	private static void process(File dir) throws IOException, ASAPFormatException
 	{
 		File[] children = dir.listFiles();
 		Arrays.sort(children);
@@ -85,7 +86,7 @@ class Indexer
 		}
 	}
 	
-	public static void main(String[] args) throws Exception
+	public static void main(String[] args) throws IOException, ASAPFormatException
 	{
 		if (args.length != 1)
 			throw new IllegalArgumentException("Usage: java Indexer PATH_TO_ASMA >asma.txt");

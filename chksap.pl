@@ -301,7 +301,7 @@ use Getopt::Long;
 use Pod::Usage;
 use strict;
 
-my $VERSION = '6.0.1';
+my $VERSION = '6.0.2';
 my $asapscan = File::Spec->rel2abs('asapscan');
 my ($check, $fix, $stat) = (0, 0, 0);
 my ($progress, $time, $overwrite_time, $features, $help, $version) = (0, 0, 0, 0, 0, 0);

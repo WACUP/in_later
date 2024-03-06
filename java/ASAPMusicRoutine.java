@@ -1,7 +1,7 @@
 /*
  * ASAPMusicRoutine.java - music embeddable in an Atari program
  *
- * Copyright (C) 2011-2019  Piotr Fusik
+ * Copyright (C) 2011-2023  Piotr Fusik
  *
  * This file is part of ASAP (Another Slight Atari Player),
  * see http://asap.sourceforge.net
@@ -45,9 +45,10 @@ public class ASAPMusicRoutine
 	 * @param filename Name of the source music file. The extension is used to identify the format. No I/O is performed.
 	 * @param module Contents of the source music file. Only <code>moduleLen</code> leading bytes are meaningful.
 	 * @param moduleLen Length of the source music file.
-	 * @throws Exception if the source is invalid, not supported by ASAP or cannot be converted to ASAPMusicRoutine.
+	 * @throws ASAPFormatException if the source is invalid or not supported by ASAP.
+	 * @throws ASAPConversionException if cannot convert to <code>ASAPMusicRoutine</code>.
 	 */
-	public ASAPMusicRoutine(String filename, byte[] module, int moduleLen) throws Exception
+	public ASAPMusicRoutine(String filename, byte[] module, int moduleLen) throws ASAPFormatException, ASAPConversionException
 	{
 		ASAPInfo info = new ASAPInfo();
 		info.load(filename, module, moduleLen);

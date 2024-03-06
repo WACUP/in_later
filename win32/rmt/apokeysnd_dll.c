@@ -1,7 +1,7 @@
 /*
  * apokeysnd_dll.c - POKEY sound emulator for Raster Music Tracker
  *
- * Copyright (C) 2008-2023  Piotr Fusik
+ * Copyright (C) 2008-2024  Piotr Fusik
  *
  * This file is part of ASAP (Another Slight Atari Player),
  * see http://asap.sourceforge.net
@@ -54,7 +54,7 @@ __declspec(dllexport) int APokeySound_Generate(int cycles, unsigned char *buffer
 
 __declspec(dllexport) void APokeySound_About(const char **name, const char **author, const char **description)
 {
-	*name = "Another POKEY Sound Emulator, v6.0.1";
-	*author = "Piotr Fusik, (C) 2007-2023";
+	*name = "Another POKEY Sound Emulator, v6.0.2";
+	*author = "Piotr Fusik, (C) 2007-2024";
 	*description = "Part of ASAP, https://asap.sourceforge.net";
 }
