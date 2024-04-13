@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
-	package="net.sf.asap" android:versionCode="602" android:versionName="6.0.2" android:installLocation="auto">
+	package="net.sf.asap" android:versionCode="603" android:versionName="6.0.3" android:installLocation="auto">
 	<uses-sdk android:minSdkVersion="21" android:targetSdkVersion="34" />
 	<uses-feature android:name="android.hardware.touchscreen" android:required="false" />
 	<uses-permission android:name="android.permission.FOREGROUND_SERVICE" />

@@ -110,7 +110,7 @@ function processFile(inputFilename)
 		fs.writeSync(of, buffer, 0, nBytes);
 	} while (nBytes == 8192);
 	if (of > 2)
-	fs.closeSync(of);
+		fs.closeSync(of);
 	outputFilename = null;
 	song = -1;
 	duration = -1;

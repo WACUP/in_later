@@ -1,7 +1,7 @@
 /*
  * xmp-asap.c - ASAP plugin for XMPlay
  *
- * Copyright (C) 2010-2023  Piotr Fusik
+ * Copyright (C) 2010-2024  Piotr Fusik
  *
  * This file is part of ASAP (Another Slight Atari Player),
  * see http://asap.sourceforge.net
@@ -155,7 +155,7 @@ static DWORD WINAPI ASAP_GetFileInfo(const char *filename, XMPFILE file, float *
 	if (tags != NULL)
 		*tags = GetTags(info);
 	ASAPInfo_Delete(info);
-	return songs;
+	return songs + XMPIN_INFO_NOSUBTAGS;
 }
 
 static DWORD WINAPI ASAP_Open(const char *filename, XMPFILE file)

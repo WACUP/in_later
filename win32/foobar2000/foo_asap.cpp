@@ -693,7 +693,7 @@ public:
 	{
 		t_filestats2 stats;
 		if (s2flags & stats2_size) {
-		service_impl_single_t<file_atr> f(p_archive, p_file);
+			service_impl_single_t<file_atr> f(p_archive, p_file);
 			stats.m_size = f.get_size(p_abort);
 		}
 		stats.set_file();

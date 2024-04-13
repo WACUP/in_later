@@ -301,7 +301,7 @@ use Getopt::Long;
 use Pod::Usage;
 use strict;
 
-my $VERSION = '6.0.2';
+my $VERSION = '6.0.3';
 my $asapscan = File::Spec->rel2abs('asapscan');
 my ($check, $fix, $stat) = (0, 0, 0);
 my ($progress, $time, $overwrite_time, $features, $help, $version) = (0, 0, 0, 0, 0, 0);
@@ -509,7 +509,7 @@ sub process($$) {
 			$tags{'FASTPLAY'} = '262';
 			$fixed{'NTSC tag with no FASTPLAY'} = 1;
 		}
-		++$types{$tags{'TYPE'}}{exists($tags{'STEREO'})?'stereo':'mono'};
+		++$types{$tags{'TYPE'}}{exists($tags{'STEREO'}) ? 'stereo' : 'mono'};
 		my $i = 0;
 		for (;;) {
 			my $bh = substr($bin, $i, 5);

@@ -1,4 +1,11 @@
 ﻿<page title="News">
+	<release version="6.0.3" date="2024-03-09">
+		<ul>
+			<li>Fixed Windows installer broken in 6.0.2.</li>
+			<li>Fixed XMPlay crash for multi-subsong files.</li>
+		</ul>
+	</release>
+
 	<release version="6.0.2" date="2024-01-22">
 		<ul>
 			<li>foobar2000 displays the sample rate in the status bar.</li>
