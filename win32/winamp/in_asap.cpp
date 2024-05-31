@@ -438,7 +438,7 @@ static DWORD WINAPI playThread(LPVOID dummy)
 			}
 			int t = plugin.outMod->GetWrittenTime();
 			plugin.SAAddPCMData(buffer, channels, BITS_PER_SAMPLE, t);
-			plugin.VSAAddPCMData(buffer, channels, BITS_PER_SAMPLE, t);
+			/*plugin.VSAAddPCMData(buffer, channels, BITS_PER_SAMPLE, t);*/
 #if SUPPORT_EQUALIZER
 			t = buffered_bytes / (channels * (BITS_PER_SAMPLE / 8));
 			t = plugin.dsp_dosamples((short *) buffer, t, BITS_PER_SAMPLE, channels, sample_rate);
@@ -547,7 +547,10 @@ static void stop(void)
 		}
 	}
 
-	plugin.outMod->Close();
+	if (plugin.outMod && plugin.outMod->Close)
+	{
+		plugin.outMod->Close();
+	}
 	plugin.SAVSADeInit();
 }
 
@@ -624,7 +627,8 @@ In_Module plugin = {
 	setOutputTime,
 	setVolume,
 	setPan,
-	0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, // filled by Winamp
+	IN_INIT_VIS_RELATED_CALLS,
+	0, 0,	// dsp related
 	IN_INIT_WACUP_EQSET_EMPTY
 	NULL,	// SetInfo
 	NULL,	// filled by Winamp
