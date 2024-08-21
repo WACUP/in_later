@@ -37,7 +37,6 @@
 #include "api.h"
 #include <loader/loader/paths.h>
 #include <loader/loader/utils.h>
-#include "../wacup_version.h"
 
 #include "aatr-stdio.h"
 #include "asap.h"
@@ -137,10 +136,10 @@ static void about(HWND hwndParent)
 {
 	wchar_t message[1024] = { 0 }, title[1024] = { 0 };
 	// TODO localise
-	StringCchPrintf(message, ARRAYSIZE(message), TEXT("%s\n\n%hs\nWACUP related "
-					"modifications by " WACUP_AUTHOR_STR " (%s)\n\nBuild date: %s"
-					"\n\n%hs"), (wchar_t*)plugin.description, ASAPInfo_CREDITS,
-					WACUP_COPYRIGHT, TEXT(__DATE__), ASAPInfo_COPYRIGHT);
+	StringCchPrintf(message, ARRAYSIZE(message), TEXT("%s\n\n%hs\nWACUP modifications by "
+					"%s (2023-%s)\n\nBuild date: %s\n\n%hs"), (wchar_t*)plugin.description,
+					ASAPInfo_CREDITS, WACUP_Author(), WACUP_Copyright(), TEXT(__DATE__),
+					ASAPInfo_COPYRIGHT);
 	AboutMessageBox(hwndParent, message, L"ASAP Decoder");
 }
 
@@ -561,7 +560,7 @@ static int getLength(void)
 
 static int getOutputTime(void)
 {
-	return plugin.outMod->GetOutputTime();
+	return (plugin.outMod ? plugin.outMod->GetOutputTime() : 0);
 }
 
 static void setOutputTime(int time_in_ms)
@@ -755,7 +754,7 @@ static int get_metadata(const char* filename, const ASAPInfo* info, int song,
 		const char* author = ASAPInfo_GetAuthor(info);
 		if (author && *author)
 		{
-			ConvertANSI(author, CP_ACP, dest, destlen);
+			ConvertANSI(author, -1, CP_ACP, dest, destlen);
 			return 1;
 		}
 	}
@@ -764,7 +763,7 @@ static int get_metadata(const char* filename, const ASAPInfo* info, int song,
 		const char* title = ASAPInfo_GetTitle(info);
 		if (title && *title)
 		{
-			ConvertANSI(title, CP_ACP, dest, destlen);
+			ConvertANSI(title, -1, CP_ACP, dest, destlen);
 			return 1;
 		}
 	}
@@ -781,7 +780,7 @@ static int get_metadata(const char* filename, const ASAPInfo* info, int song,
 			{
 				*space = 0;
 			}
-			ConvertANSI((slash ? (slash + 1) : date), CP_ACP, dest, destlen);
+			ConvertANSI((slash ? (slash + 1) : date), -1, CP_ACP, dest, destlen);
 			return 1;
 		}
 	}
@@ -908,7 +907,7 @@ static int get_metadata(const char* filename, const ASAPInfo* info, int song,
 						p = appendStil(p, "Comment: ", ASTILCover_GetComment(cover));
 					}
 
-					ConvertANSI(buf, (ASTIL_IsUTF8(astil) ? CP_UTF8 : CP_ACP), dest, destlen);
+					ConvertANSI(buf, -1, (ASTIL_IsUTF8(astil) ? CP_UTF8 : CP_ACP), dest, destlen);
 					plugin.memmgr->sysFree(buf);
 				}
 			}

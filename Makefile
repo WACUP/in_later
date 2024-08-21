@@ -16,7 +16,7 @@ INSTALL_PROGRAM = mkdir -p $(DESTDIR)$(2) && $(INSTALL) $(1) $(DESTDIR)$(2)/$(or
 INSTALL_DATA = mkdir -p $(DESTDIR)$(2) && $(INSTALL) -m 644 $(1) $(DESTDIR)$(2)/$(1)
 SDL_CFLAGS = `sdl-config --cflags`
 SDL_LIBS = `sdl-config --libs`
-SEVENZIP = 7z a -mx=9 -bd -bso0
+SEVENZIP = 'C:/Program Files/7-Zip/7z' a -mx=9 -bd -bso0
 MAKEZIP = $(DO)$(RM) $@ && $(SEVENZIP) -tzip $@ $(patsubst %,./%,$(filter-out win32/signed,$^)) # "./" makes 7z don't store paths in the archive
 COPY = $(DO)cp $< $@
 XASM = $(DO)xasm -q -o $@ $<

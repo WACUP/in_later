@@ -28,52 +28,6 @@ static char *FuString_Substring(const char *str, int len)
 	return p;
 }
 
-typedef void (*FuMethodPtr)(void *);
-typedef struct {
-	size_t count;
-	size_t unitSize;
-	size_t refCount;
-	FuMethodPtr destructor;
-} FuShared;
-
-static void *FuShared_Make(size_t count, size_t unitSize, FuMethodPtr constructor, FuMethodPtr destructor)
-{
-	FuShared *self = (FuShared *) malloc(sizeof(FuShared) + count * unitSize);
-	if (self)
-	{
-		self->count = count;
-		self->unitSize = unitSize;
-		self->refCount = 1;
-		self->destructor = destructor;
-		if (constructor != NULL) {
-			for (size_t i = 0; i < count; i++)
-				constructor((char*)(self + 1) + i * unitSize);
-		}
-		return self + 1;
-	}
-	return NULL;
-}
-
-static void FuShared_Release(void *ptr)
-{
-	if (ptr == NULL)
-		return;
-	FuShared *self = (FuShared *) ptr - 1;
-	if (--self->refCount != 0)
-		return;
-	if (self->destructor != NULL) {
-		for (size_t i = self->count; i > 0;)
-			self->destructor((char *) ptr + --i * self->unitSize);
-	}
-	free(self);
-}
-
-static void FuShared_Assign(void **ptr, void *value)
-{
-	FuShared_Release(*ptr);
-	*ptr = value;
-}
-
 typedef enum {
 	NmiStatus_RESET,
 	NmiStatus_ON_V_BLANK,
@@ -7071,7 +7025,7 @@ static void Pokey_Construct(Pokey *self)
 
 static void Pokey_Destruct(Pokey *self)
 {
-	FuShared_Release(self->deltaBuffer);
+	free(self->deltaBuffer);
 }
 
 static void Pokey_StartFrame(Pokey *self)
@@ -7084,7 +7038,8 @@ static void Pokey_Initialize(Pokey *self, int sampleRate)
 {
 	int64_t sr = sampleRate;
 	self->deltaBufferLength = (int) (sr * 312 * 114 / 1773447 + 32 + 2);
-	FuShared_Assign((void **) &self->deltaBuffer, (int *) FuShared_Make(self->deltaBufferLength, sizeof(int), NULL, NULL));
+	free(self->deltaBuffer);
+	self->deltaBuffer = (int *) malloc(self->deltaBufferLength * sizeof(int));
 	self->trailing = self->deltaBufferLength;
 	for (int c = 0; c < 4; c++)
 		PokeyChannel_Initialize(self->channels + c);
