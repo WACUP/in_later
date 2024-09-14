@@ -163,12 +163,12 @@ void ASAPInfo_Delete(ASAPInfo *self);
 /**
  * ASAP version - micro part.
  */
-#define ASAPInfo_VERSION_PATCH 10
+#define ASAPInfo_VERSION_PATCH 11
 
 /**
  * ASAP version as a string.
  */
-#define ASAPInfo_VERSION "6.0.3.10"
+#define ASAPInfo_VERSION "6.0.3.11"
 
 /**
  * Years ASAP was created in.

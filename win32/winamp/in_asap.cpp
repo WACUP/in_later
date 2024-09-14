@@ -491,7 +491,9 @@ static int play(const in_char *fn)
 			return 1;
 
 		const int channels = ASAPInfo_GetChannels(info);
-		const int maxlatency = (plugin.outMod->Open ? plugin.outMod->Open(sample_rate, channels, BITS_PER_SAMPLE, -1, -1) : -1);
+		const int maxlatency = (plugin.outMod->Open && sample_rate && channels ?
+								plugin.outMod->Open(sample_rate, channels,
+												 BITS_PER_SAMPLE, -1, -1) : -1);
 		if (maxlatency < 0)
 			return 1;
 
@@ -517,13 +519,19 @@ static int play(const in_char *fn)
 static void pause(void)
 {
 	paused = true;
-	plugin.outMod->Pause(1);
+	if (plugin.outMod)
+	{
+		plugin.outMod->Pause(1);
+	}
 }
 
 static void unPause(void)
 {
 	paused = false;
-	plugin.outMod->Pause(0);
+	if (plugin.outMod)
+	{
+		plugin.outMod->Pause(0);
+	}
 }
 
 static int isPaused(void)
@@ -550,7 +558,10 @@ static void stop(void)
 	{
 		plugin.outMod->Close();
 	}
-	plugin.SAVSADeInit();
+	if (plugin.outMod)
+	{
+		plugin.SAVSADeInit();
+	}
 }
 
 static int getLength(void)
@@ -570,12 +581,18 @@ static void setOutputTime(int time_in_ms)
 
 static void setVolume(int volume)
 {
-	plugin.outMod->SetVolume(volume);
+	if (plugin.outMod)
+	{
+		plugin.outMod->SetVolume(volume);
+	}
 }
 
 static void setPan(int pan)
 {
-	plugin.outMod->SetPan(pan);
+	if (plugin.outMod)
+	{
+		plugin.outMod->SetPan(pan);
+	}
 }
 
 void GetFileExtensions(void)
