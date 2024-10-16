@@ -2796,7 +2796,7 @@ static void ASAPInfo_Destruct(ASAPInfo *self)
 
 ASAPInfo *ASAPInfo_New(void)
 {
-	ASAPInfo *self = (ASAPInfo *) malloc(sizeof(ASAPInfo));
+	ASAPInfo *self = (ASAPInfo *) calloc(1, sizeof(ASAPInfo));
 	if (self != NULL)
 		ASAPInfo_Construct(self);
 	return self;
@@ -4600,7 +4600,7 @@ static void ASAPWriter_Construct(ASAPWriter *self)
 
 ASAPWriter *ASAPWriter_New(void)
 {
-	ASAPWriter *self = (ASAPWriter *) malloc(sizeof(ASAPWriter));
+	ASAPWriter *self = (ASAPWriter *) calloc(1, sizeof(ASAPWriter));
 	if (self != NULL)
 		ASAPWriter_Construct(self);
 	return self;

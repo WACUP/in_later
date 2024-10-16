@@ -42,7 +42,7 @@ AATR *AATRStdio_New(const char *filename)
 	FILE *fp = fopen(filename, "rb");
 	if (fp == NULL)
 		return NULL;
-	AATRStdio *self = (AATRStdio *) malloc(sizeof(AATRStdio));
+	AATRStdio *self = (AATRStdio *) calloc(1, sizeof(AATRStdio));
 	if (self == NULL) {
 		fclose(fp);
 		return NULL;

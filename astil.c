@@ -54,7 +54,7 @@ struct ASTIL
 
 ASTIL *ASTIL_New(void)
 {
-	ASTIL *self = (ASTIL *) malloc(sizeof(ASTIL));
+	ASTIL *self = (ASTIL *) calloc(1, sizeof(ASTIL));
 	return self;
 }
 
