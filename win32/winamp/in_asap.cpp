@@ -387,13 +387,15 @@ static void getFileInfo(const in_char *file, in_char *title, int *length_in_ms)
 #endif
 }*/
 
-static int isOurFile(const in_char *fn)
+static int isOurFile(IN_ISOURFILE_PARAM)
 {
 	if (!IsAnUrl(fn))
 	{
 		wchar_t filename[FILENAME_SIZE] = { 0 };
 		extractSongNumber(fn, filename);
+#ifndef _WIN64
 		LPCWSTR ext = FindPathExtension(filename);
+#endif
 		if (ext)
 		{
 			AutoChar ext8(ext);
