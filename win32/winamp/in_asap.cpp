@@ -714,6 +714,18 @@ extern "C" __declspec(dllexport) int winampUseUnifiedFileInfoDlg(const wchar_t* 
 	return 1;
 }
 
+// should return a child window of 513x271 pixels (341x164 in msvc dlg units), or return NULL for no tab.
+// Fill in name (a buffer of namelen characters), this is the title of the tab (defaults to "Advanced").
+// filename will be valid for the life of your window. n is the tab number. This function will first be 
+// called with n == 0, then n == 1 and so on until you return NULL (so you can add as many tabs as you like).
+// The window you return will recieve WM_COMMAND, IDOK/IDCANCEL messages when the user clicks OK or Cancel.
+// when the user edits a field which is duplicated in another pane, do a SendMessage(GetParent(hwnd),WM_USER,(WPARAM)L"fieldname",(LPARAM)L"newvalue");
+// this will be broadcast to all panes (including yours) as a WM_USER.
+extern "C" __declspec(dllexport) HWND winampAddUnifiedFileInfoPane(int n, const wchar_t* filename, HWND parent, wchar_t* name, size_t namelen)
+{
+	return NULL;
+}
+
 static wchar_t* appendAddress(wchar_t* p, const wchar_t* format, int value)
 {
 	if (value >= 0)
@@ -945,7 +957,19 @@ static int get_metadata(const char* filename, const ASAPInfo* info, int song,
 	}
 	else if (SameStrA(data, "samplerate"))
 	{
+		// TODO possible need to consider
+		//		looking at this for info.
+		//ASAP_GetSampleRate(asap)
 		I2WStr(sample_rate, dest, destlen);
+		return 1;
+	}
+	else if (SameStrA(data, "bitdepth"))
+	{
+		// TODO is this correct though as it's been
+		//      hard-coded to be 16-bit it should
+		dest[0] = L'1';
+		dest[1] = L'6';
+		dest[2] = 0;
 		return 1;
 	}
 	return 0;

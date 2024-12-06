@@ -2,10 +2,11 @@ LIBRARY	"in_later"
 EXPORTS
 winampGetInModule2 @1
 winampGetExtendedFileInfoW @2
-winampUseUnifiedFileInfoDlg @3
-winampGetExtendedRead_close @4
-winampGetExtendedRead_getData @5
-winampGetExtendedRead_openW @6
-winampGetExtendedRead_setTime @7
-winampUninstallPlugin @8
+winampAddUnifiedFileInfoPane @3
+winampUseUnifiedFileInfoDlg @4
+winampGetExtendedRead_close @5
+winampGetExtendedRead_getData @6
+winampGetExtendedRead_openW @7
+winampGetExtendedRead_setTime @8
+winampUninstallPlugin @9
 GetSubSongInfo @13 NONAME
