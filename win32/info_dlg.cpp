@@ -58,11 +58,16 @@ LPCTSTR atrFilenameHash(LPCTSTR filename)
 }
 #endif
 
-bool loadModule(LPCTSTR filename, BYTE *module, int *module_len)
+bool loadModule(LPCTSTR filename, BYTE *module, int *module_len, LPCTSTR *module_hash)
 {
+	*module_len = 0;
 	bool ok;
 #ifdef WINAMP
 	LPCTSTR hashW = atrFilenameHash(filename);
+	if (module_hash)
+	{
+		*module_hash = hashW;
+	}
 	if (hashW != NULL && hashW < filename + MAX_PATH) {
 		_TCHAR atr_filename[MAX_PATH] = { 0 };
 		memcpy(atr_filename, filename, (hashW - filename) * sizeof(_TCHAR));

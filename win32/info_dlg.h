@@ -50,7 +50,7 @@ extern "C" {
 #define IDC_PROGRESS   501
 
 void combineFilenameExt(LPTSTR dest, LPCTSTR filename, LPCTSTR ext);
-bool loadModule(LPCTSTR filename, BYTE *module, int *module_len);
+bool loadModule(LPCTSTR filename, BYTE *module, int *module_len, LPCTSTR *module_hash);
 
 extern HWND infoDialog;
 void showInfoDialog(HINSTANCE hInstance, HWND hwndParent, LPCTSTR filename, int song);

@@ -65,10 +65,15 @@ extern In_Module plugin;
 //#define INI_SECTION  TEXT("in_asap")
 //static const wchar_t *ini_file;
 
+// TODO need to remove as many of the globals when it comes to
+//		playback handling as it's possible to crash this where
+//		multiple playback threads can be triggered on overlaps
 // current file
+CRITICAL_SECTION g_info_cs = { 0 };
 ASAP *asap = NULL;
-static wchar_t playing_filename_with_song[MAX_PATH + 3] = TEXT("");
-static BYTE *playing_module/*[ASAPInfo_MAX_MODULE_LENGTH]*/;
+static char *playing_filename_with_song = NULL,
+			*last_info_filename = NULL;
+static BYTE *playing_module;
 static int playing_module_len;
 static int duration;
 
@@ -288,6 +293,8 @@ static void expandPlaylistSongs(void)
 
 static int init(void)
 {
+	InitializeCriticalSectionEx(&g_info_cs, 400, CRITICAL_SECTION_NO_DEBUG_INFO);
+
 	WASABI_API_START_LANG_DESC(plugin.language, plugin.hDllInstance,
 							   InASAPLangGUID, IDS_PLUGIN_NAME,
 							   TEXT(ASAPInfo_VERSION), &plugin.description);
@@ -302,6 +309,8 @@ static void quit(void)
 		ASAP_Delete(asap);
 		asap = NULL;
 	}
+
+	DeleteCriticalSection(&g_info_cs);
 }
 
 #if 0
@@ -471,7 +480,6 @@ static int play(const in_char *fn)
 	}
 	if (asap != NULL)
 	{
-		_tcscpy(playing_filename_with_song, fn);
 		wchar_t filename[MAX_PATH] = { 0 };
 		int song = extractSongNumber(fn, filename);
 
@@ -480,10 +488,18 @@ static int play(const in_char *fn)
 			playing_module = (BYTE*)plugin.memmgr->sysMalloc(ASAPInfo_MAX_MODULE_LENGTH);
 		}
 
-		if (!loadModule(filename, playing_module, &playing_module_len))
+		if (!loadModule(filename, playing_module, &playing_module_len, NULL))
 			return -1;
-		AutoCharFn file(filename);
-		if (!ASAP_Load(asap, file, playing_module, playing_module_len))
+
+		EnterCriticalSection(&g_info_cs);
+		if (playing_filename_with_song)
+		{
+			plugin.memmgr->sysFree(playing_filename_with_song);
+		}
+		playing_filename_with_song = AutoCharFnDup(filename);
+		LeaveCriticalSection(&g_info_cs);
+
+		if (!ASAP_Load(asap, playing_filename_with_song, playing_module, playing_module_len))
 			return 1;
 		const ASAPInfo *info = ASAP_GetInfo(asap);
 		if (song < 0)
@@ -891,58 +907,69 @@ static int get_metadata(const char* filename, const ASAPInfo* info, int song,
 	}
 	else if (SameStrA(data, "comment"))
 	{
-		ASTIL *astil = ASTIL_New();
-		if (astil != NULL)
+		static ASTIL *astil;
+		if (!astil)
 		{
-			if (ASTIL_Load(astil, filename, song))
+			astil = ASTIL_New();
+			if (astil != NULL)
 			{
-				char *buf = (char*)plugin.memmgr->sysMalloc(16000);
-				if (buf)
+				if (!ASTIL_Load(astil, filename, song))
 				{
-					char* p = buf;
-					p = appendStil(p, "", ASTIL_GetTitle(astil));
-					p = appendStil(p, "by ", ASTIL_GetAuthor(astil));
-					p = appendStil(p, "Directory comment: ", ASTIL_GetDirectoryComment(astil));
-					p = appendStil(p, "File comment: ", ASTIL_GetFileComment(astil));
-					p = appendStil(p, "Song comment: ", ASTIL_GetSongComment(astil));
+					ASTIL_Delete(astil);
+					astil = NULL;
+				}
+			}
+		}
 
-					for (int i = 0; ; i++)
+		if (astil)
+		{
+			char* buf = (char*)plugin.memmgr->sysMalloc(16000);
+			if (buf)
+			{
+				char* p = buf;
+				p = appendStil(p, "", ASTIL_GetTitle(astil));
+				p = appendStil(p, "by ", ASTIL_GetAuthor(astil));
+				p = appendStil(p, "Directory comment: ", ASTIL_GetDirectoryComment(astil));
+				p = appendStil(p, "File comment: ", ASTIL_GetFileComment(astil));
+				p = appendStil(p, "Song comment: ", ASTIL_GetSongComment(astil));
+
+				for (int i = 0; ; i++)
+				{
+					const ASTILCover* cover = ASTIL_GetCover(astil, i);
+					if (cover == NULL)
 					{
-						const ASTILCover* cover = ASTIL_GetCover(astil, i);
-						if (cover == NULL)
-						{
-							break;
-						}
+						break;
+					}
 
-						const int startSeconds = ASTILCover_GetStartSeconds(cover);
-						if (startSeconds >= 0)
+					const int startSeconds = ASTILCover_GetStartSeconds(cover);
+					if (startSeconds >= 0)
+					{
+						const int endSeconds = ASTILCover_GetEndSeconds(cover);
+						if (endSeconds >= 0)
 						{
-							const int endSeconds = ASTILCover_GetEndSeconds(cover);
-							if (endSeconds >= 0)
-							{
-								p += sprintf(p, "At %d:%02d-%d:%02d c", startSeconds / 60, startSeconds % 60, endSeconds / 60, endSeconds % 60);
-							}
-							else
-							{
-								p += sprintf(p, "At %d:%02d c", startSeconds / 60, startSeconds % 60);
-							}
+							p += sprintf(p, "At %d:%02d-%d:%02d c", startSeconds / 60,
+								 startSeconds % 60, endSeconds / 60, endSeconds % 60);
 						}
 						else
 						{
-							*p++ = 'C';
+							p += sprintf(p, "At %d:%02d c", startSeconds / 60, startSeconds % 60);
 						}
-
-						const char* s = ASTILCover_GetTitleAndSource(cover);
-						p = appendStil(p, "overs: ", s[0] != '\0' ? s : "<?>");
-						p = appendStil(p, "by ", ASTILCover_GetArtist(cover));
-						p = appendStil(p, "Comment: ", ASTILCover_GetComment(cover));
+					}
+					else
+					{
+						*p++ = 'C';
 					}
 
-					ConvertANSI(buf, -1, (ASTIL_IsUTF8(astil) ? CP_UTF8 : CP_ACP), dest, destlen);
-					plugin.memmgr->sysFree(buf);
+					const char* s = ASTILCover_GetTitleAndSource(cover);
+					p = appendStil(p, "overs: ", s[0] != '\0' ? s : "<?>");
+					p = appendStil(p, "by ", ASTILCover_GetArtist(cover));
+					p = appendStil(p, "Comment: ", ASTILCover_GetComment(cover));
 				}
+
+				ConvertANSI(buf, -1, (ASTIL_IsUTF8(astil) ? CP_UTF8 : CP_ACP), dest, destlen);
+
+				plugin.memmgr->sysFree(buf);
 			}
-			ASTIL_Delete(astil);
 			return 1;
 		}
 	}
@@ -988,8 +1015,7 @@ extern "C" __declspec(dllexport) int winampGetExtendedFileInfoW(const wchar_t *f
 	else if (SameStrA(data, "streamgenre") ||
 			 SameStrA(data, "streamtype") ||
 			 SameStrA(data, "streamurl") ||
-			 SameStrA(data, "streamname") ||
-			 SameStrA(data, "reset"))
+			 SameStrA(data, "streamname"))
 	{
 		return 0;
 	}
@@ -1007,44 +1033,91 @@ extern "C" __declspec(dllexport) int winampGetExtendedFileInfoW(const wchar_t *f
 
 	read_config();
 
-	static BYTE* title_module = (BYTE*)plugin.memmgr->sysMalloc(ASAPInfo_MAX_MODULE_LENGTH);
-	static int title_module_len;
-
 	wchar_t filename[MAX_PATH] = { 0 };
-	int title_song = extractSongNumber(fn, filename);
+	const int title_song = extractSongNumber(fn, filename);
 
 	// if we're playing then try to get the metadata
 	// from that copy to save loading a new instance
-	const bool playing = SameStr(fn, playing_filename_with_song);
-	if (playing)
+	EnterCriticalSection(&g_info_cs);
+
+	const AutoCharFn playing_file(fn);
+	const bool playing = SameStrA(playing_file, playing_filename_with_song);
+	if (playing && (playing_module_len > 0))
 	{
-		AutoCharFn file(fn);
-		return get_metadata(file, ASAP_GetInfo(asap), title_song, playing_module,
-										playing_module_len, data, dest, destlen);
+		const int ret = get_metadata(playing_file, ASAP_GetInfo(asap),
+									 title_song, playing_module, playing_module_len,
+									 data, dest, destlen);
+		LeaveCriticalSection(&g_info_cs);
+		return ret;
 	}
 
-	// TODO minimise re-reading the file again if
-	//		it's only just been loaded / playing
-	if (loadModule(filename, title_module, &title_module_len))
+	static BYTE* title_module;
+	static int title_module_len;
+	static ASAPInfo* title_info;
+	const AutoCharFn file(filename);
+	bool reset = SameStrA(data, "reset"), clean_up = false;
+	if (reset || !last_info_filename || !SameStrA(file, last_info_filename))
 	{
-		LPCTSTR hashW = atrFilenameHash(filename);
-		AutoChar hash(hashW);
-		AutoCharFn file(filename);
-
-		static ASAPInfo *title_info;
-		if (title_info == NULL)
+		if (last_info_filename != NULL)
 		{
-			title_info = ASAPInfo_New();
+			plugin.memmgr->sysFree(last_info_filename);
+			last_info_filename = NULL;
 		}
 
-		if (ASAPInfo_Load(title_info, hash != NULL ? hash + 1 :
-						  file, title_module, title_module_len))
+		if (!reset)
 		{
-			return get_metadata(file, title_info, title_song, title_module,
-									title_module_len, data, dest, destlen);
+			last_info_filename = plugin.memmgr->sysDupStr(file);
+
+			if (title_module == NULL)
+			{
+				title_module = (BYTE*)plugin.memmgr->sysMalloc(ASAPInfo_MAX_MODULE_LENGTH);
+			}
+
+			LPCTSTR hashW = NULL;
+			if (loadModule(filename, title_module, &title_module_len, &hashW))
+			{
+				//LPCTSTR hashW = atrFilenameHash(filename);
+				AutoChar hash(hashW);
+
+				if (title_info == NULL)
+				{
+					title_info = ASAPInfo_New();
+				}
+
+				if (!title_info || !ASAPInfo_Load(title_info, (hash != NULL) ? (hash + 1) :
+												  file, title_module, title_module_len))
+				{
+					clean_up = true;
+				}
+			}
+		}
+		else
+		{
+			clean_up = true;
 		}
 	}
-	return 0;
+
+	if (clean_up)
+	{
+		title_module_len = 0;
+
+		if (title_module != NULL)
+		{
+			plugin.memmgr->sysFree(title_module);
+			title_module = NULL;
+		}
+
+		if (title_info != NULL)
+		{
+			ASAPInfo_Delete(title_info);
+			title_info = NULL;
+		}
+	}
+
+	const int ret = (((title_module_len > 0) && title_info) ? get_metadata(file, title_info,
+					 title_song, title_module, title_module_len, data, dest, destlen) : 0);
+	LeaveCriticalSection(&g_info_cs);
+	return ret;
 }
 
 
@@ -1077,7 +1150,7 @@ extern "C" __declspec(dllexport) intptr_t winampGetExtendedRead_openW(const wcha
 	{
 		wchar_t filename[MAX_PATH] = { 0 };
 		int song = extractSongNumber(fn, filename);
-		if (loadModule(filename, e->module, &e->module_len))
+		if (loadModule(filename, e->module, &e->module_len, NULL))
 		{
 			AutoCharFn file(filename);
 			if (ASAP_Load(e->asap, file, e->module, e->module_len))
@@ -1149,8 +1222,8 @@ const int get_songs_count(const char* fn, const wchar_t* inside_fn, AATRRecursiv
 				int playlist_module_len = (lister ? AATRFileStream_Read(stream, playlist_module, 0,
 																  ASAPInfo_MAX_MODULE_LENGTH) : 0);
 
-				if ((!lister ? loadModule(inside_fn, playlist_module, &playlist_module_len) : true) &&
-							   ASAPInfo_Load(playlist_info, fn, playlist_module, playlist_module_len))
+				if ((!lister ? loadModule(inside_fn, playlist_module, &playlist_module_len, NULL) : true) &&
+									 ASAPInfo_Load(playlist_info, fn, playlist_module, playlist_module_len))
 				{
 					if (songs)
 					{
