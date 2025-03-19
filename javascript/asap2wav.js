@@ -1,7 +1,7 @@
 /*
  * asap2wav.js - converter of ASAP-supported formats to WAV files
  *
- * Copyright (C) 2009-2023 Piotr Fusik
+ * Copyright (C) 2009-2025 Piotr Fusik
  *
  * This file is part of ASAP (Another Slight Atari Player),
  * see http://asap.sourceforge.net
@@ -22,12 +22,12 @@
  */
 
 import fs from "fs";
-import { ASAP, ASAPInfo, ASAPSampleFormat } from "./asap.mjs";
+import { ASAP, ASAPInfo, ASAPSampleFormat } from "./asap.js";
 
 function printHelp()
 {
 	console.log(
-		"Usage: node asap2wav.mjs [OPTIONS] INPUTFILE...\n" +
+		"Usage: node asap2wav.js [OPTIONS] INPUTFILE...\n" +
 		"Each INPUTFILE must be in a supported format:\n" +
 		"SAP, CMC, CM3, CMR, CMS, DMC, DLT, MPT, MPD, RMT, TMC, TM8, TM2 or FC.\n" +
 		"Options:\n" +

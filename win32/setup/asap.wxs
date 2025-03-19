@@ -251,7 +251,7 @@
 					<File Source="sap2txt.exe" Checksum="yes" KeyPath="yes" />
 				</Component>
 				<Component Id="diff_sap.js">
-					<File Source="diff-sap.js" KeyPath="yes" />
+					<File Id="diff_sap.js" Source="diff-sap.js" KeyPath="yes" />
 				</Component>
 				<Component Id="diff_sap_tsvn.reg">
 					<RegistryValue Root="HKCU" Key="Software\TortoiseSVN\DiffTools" Name=".sap" Value="wscript.exe &quot;[#diff_sap.js]&quot; %base %mine %bname %yname //E:javascript" Type="string" KeyPath="yes" />

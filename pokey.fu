@@ -1,6 +1,6 @@
 // pokey.fu - POKEY chip emulator
 //
-// Copyright (C) 2010-2023  Piotr Fusik
+// Copyright (C) 2010-2025  Piotr Fusik
 //
 // This file is part of ASAP (Another Slight Atari Player),
 // see http://asap.sourceforge.net
@@ -98,10 +98,14 @@ class PokeyChannel
 		Slope(pokey, pokeys, cycle);
 	}
 
-	internal void DoStimer!(int cycle)
+	internal void DoStimer!(Pokey! pokey, PokeyPair pokeys, int cycle, int reload)
 	{
 		if (TickCycle != Pokey.NeverCycle)
-			TickCycle = cycle + PeriodCycles;
+			TickCycle = cycle + reload;
+		if (Out != 0) {
+			Out = 0;
+			Slope(pokey, pokeys, cycle);
+		}
 	}
 
 	internal void SetMute!(bool enable, int mask, int cycle)
@@ -500,9 +504,11 @@ class Pokey
 			InitMute(cycle);
 			break;
 		case 0x09:
-			// TODO: ReloadCycles, Out
-			foreach (PokeyChannel! c in Channels)
-				c.DoStimer(cycle);
+			GenerateUntilCycle(pokeys, cycle);
+			Channels[0].DoStimer(this, pokeys, cycle, (Audctl & 0x10) == 0 ? Channels[0].PeriodCycles : ReloadCycles1);
+			Channels[1].DoStimer(this, pokeys, cycle, Channels[1].PeriodCycles);
+			Channels[2].DoStimer(this, pokeys, cycle, (Audctl & 8) == 0 ? Channels[2].PeriodCycles : ReloadCycles3);
+			Channels[3].DoStimer(this, pokeys, cycle, Channels[3].PeriodCycles);
 			break;
 		case 0x0e:
 			Irqst |= data ^ 0xff;

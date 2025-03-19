@@ -1,6 +1,6 @@
 // asapwriter.fu - format conversions
 //
-// Copyright (C) 2011-2023  Piotr Fusik
+// Copyright (C) 2011-2024  Piotr Fusik
 //
 // This file is part of ASAP (Another Slight Atari Player),
 // see http://asap.sourceforge.net
@@ -114,14 +114,12 @@ class ASAPNativeModuleWriter
 			Copy(songOffset);
 			int songEnd = 7 + GetWord(4) - startAddr;
 			while (songOffset + 3 < songEnd) {
-				int nextSongOffset = songOffset + GetByte(9) - '0';
+				int nextSongOffset = Math.Min(songOffset + GetByte(9) - '0', songEnd);
 				if (GetByte(songOffset) == 0xfe) {
 					// song jump
 					Copy(songOffset + 2); // copy 0xfe, line_number
 					RelocateWords(1); // relocate jump address
 				}
-				if (nextSongOffset > songEnd)
-					nextSongOffset = songEnd;
 				Copy(nextSongOffset);
 				songOffset = nextSongOffset;
 			}
@@ -638,8 +636,8 @@ public class ASAPWriter
 
 	static int FormatXexInfoText(byte[]! dest, int destLen, int endColumn, string src, bool author)
 	{
-		int srcLen = src.Length;
-		for (int srcOffset = 0; srcOffset < srcLen; ) {
+		nint srcLen = src.Length;
+		for (nint srcOffset = 0; srcOffset < srcLen; ) {
 			int c = src[srcOffset++];
 			if (c == ' ') {
 				if (author && srcOffset < srcLen && src[srcOffset] == '&') {
@@ -653,7 +651,7 @@ public class ASAPWriter
 						continue;
 					}
 				}
-				int wordLen;
+				nint wordLen;
 				for (wordLen = 0; srcOffset + wordLen < srcLen && src[srcOffset + wordLen] != ' '; wordLen++) {
 				}
 				if (wordLen <= XexInfoCharactersPerLine && destLen % XexInfoCharactersPerLine + 1 + wordLen > XexInfoCharactersPerLine) {

@@ -1,6 +1,6 @@
 // asapinfo.fu - module parser
 //
-// Copyright (C) 2010-2024  Piotr Fusik
+// Copyright (C) 2010-2025  Piotr Fusik
 //
 // This file is part of ASAP (Another Slight Atari Player),
 // see http://asap.sourceforge.net
@@ -122,7 +122,7 @@ public class ASAPInfo
 	public const string Version = $"{VersionMajor}.{VersionMinor}.{VersionMicro}";
 
 	/// Years ASAP was created in.
-	public const string Years = "2005-2024";
+	public const string Years = "2005-2025";
 
 	/// Short credits for ASAP.
 	public const string Credits =
@@ -1359,7 +1359,7 @@ public class ASAPInfo
 	internal static int GetPackedExt(string filename)
 	{
 		int ext = 0;
-		for (int i = filename.Length; --i > 0; ) {
+		for (nint i = filename.Length; --i > 0; ) {
 			int c = filename[i];
 			if (c <= ' ' || c > 'z')
 				return 0;
@@ -1436,25 +1436,22 @@ public class ASAPInfo
 	{
 		int ext;
 		if (filename != null) {
-			int len = filename.Length;
-			int basename = 0;
-			ext = -1;
-			for (int i = len; --i >= 0; ) {
+			nint basename = 0;
+			nint extPos = -1;
+			for (nint i = filename.Length; --i >= 0; ) {
 				int c = filename[i];
 				if (c == '/' || c == '\\') {
 					basename = i + 1;
 					break;
 				}
 				if (c == '.')
-					ext = i;
+					extPos = i;
 			}
-			if (ext < 0)
+			if (extPos < 0)
 				throw ASAPFormatException("Filename has no extension");
-			ext -= basename;
-			if (ext > MaxTextLength)
-				ext = MaxTextLength;
 #if !OPENCL
-			Filename = filename.Substring(basename, ext);
+			extPos = Math.Min(extPos - basename, MaxTextLength);
+			Filename = filename.Substring(basename, extPos);
 #endif
 			ext = GetPackedExt(filename);
 		}

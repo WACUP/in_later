@@ -13,13 +13,17 @@ extern "C" {
 #define XMPIN_FACE 4 // "face"
 #endif
 
-#define XMPIN_FLAG_CANSTREAM	1 // can stream files (play while downloading from the 'net)
+#define XMPIN_FLAG_CANSTREAM	1 // can stream files (play while downloading from the internet)
 #define XMPIN_FLAG_OWNFILE		2 // can process files without "XMPFILE" routines
 #define XMPIN_FLAG_NOXMPFILE	4 // never use "XMPFILE" routines (implies XMPIN_FLAG_OWNFILE)
 #define XMPIN_FLAG_LOOP			8 // custom looping
 #define XMPIN_FLAG_TAIL			16 // output tail (decay/fadeout)
 #define XMPIN_FLAG_CONFIG		64 // can save config
 #define XMPIN_FLAG_LOOPSOUND	128 // allow "auto-loop any track ending with sound" with XMPIN_FLAG_LOOP
+#define XMPIN_FLAG_NETSEEK		256 // allow seeking in internet files (should not read when seeking)
+#define XMPIN_FLAG_NOCHECK		512 // don't need CheckFile to be called before Open
+#define XMPIN_FLAG_MULTIEXT		1024 // exts has multiple descriptions+extensions (double null-terminated)
+#define XMPIN_FLAG_OPTIONS		2048 // has Options DLGPROC
 
 // SetPosition special positions
 #define XMPIN_POS_LOOP			-1 // loop
@@ -90,12 +94,14 @@ typedef struct {
 	BOOL (WINAPI *VisRender)(DWORD *buf, SIZE size, DWORD flags); // render vis
 	BOOL (WINAPI *VisRenderDC)(HDC dc, SIZE size, DWORD flags); // render vis
 	void (WINAPI *VisButton)(DWORD x, DWORD y); // mouse click in vis
-
 	void *reserved2;
 
 	DWORD (WINAPI *GetConfig)(void *config); // get config (return size of config data) (OPTIONAL)
 	void (WINAPI *SetConfig)(void *config, DWORD size); // apply config (OPTIONAL)
+	DLGPROC Options; // options page handler (dialog in resource 1000, OPTIONAL)
 } XMPIN;
+
+XMPIN *WINAPI XMPIN_GetInterface(DWORD face, InterfaceProc faceproc);
 
 #define XMPFUNC_IN_FACE		11
 

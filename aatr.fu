@@ -1,6 +1,6 @@
 // aatr.fu - another ATR file extractor
 //
-// Copyright (C) 2012-2021  Piotr Fusik
+// Copyright (C) 2012-2024  Piotr Fusik
 //
 // This file is part of ASAP (Another Slight Atari Player),
 // see http://asap.sourceforge.net
@@ -216,9 +216,9 @@ public class AATRDirectory
 		/// The name of the file or directory to find, with subdirectories separated with slashes.
 		string path)
 	{
-		int i = 0;
-		int pathLength = path.Length;
-		for (int j = 0; j < pathLength; j++) {
+		nint i = 0;
+		nint pathLength = path.Length;
+		for (nint j = 0; j < pathLength; j++) {
 			if (path[j] == '/') {
 				if (j - i > 12)
 					return false;
@@ -269,10 +269,10 @@ public class AATRRecursiveLister
 			if (filename == null) {
 				if (Depth == 0)
 					return null;
-				int i = DirectoryPath.Length - 1;
-				while (--i >= 0 && DirectoryPath[i] != '/') {
+				nint i = DirectoryPath.Length;
+				while (--i > 0 && DirectoryPath[i - 1] != '/') {
 				}
-				DirectoryPath = DirectoryPath.Substring(0, i + 1);
+				DirectoryPath = DirectoryPath.Substring(0, i);
 				Depth--;
 			}
 			else if (directory.IsEntryDirectory()) {
@@ -283,9 +283,7 @@ public class AATRRecursiveLister
 				Directories[++Depth].Open(directory);
 			}
 			else {
-				// workaround "FilePath = DirectoryPath + filename;" unsupported by cito
-				FilePath = DirectoryPath;
-				FilePath += filename;
+				FilePath = DirectoryPath + filename;
 				return FilePath;
 			}
 		}

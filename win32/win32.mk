@@ -156,9 +156,9 @@ CLEAN += win32/bass/x64/bass_asap-res.o
 
 FOOBAR2000_SRC = $(call src,win32/foobar2000/foo_asap.cpp asap.[ch] astil.[ch] aatr-stdio.[ch] aatr.h win32/info_dlg.[ch] win32/settings_dlg.[ch]) win32/foobar2000/foo_asap.res
 FOOBAR2000_SDK_FILES = component_client abort_callback album_art app_close_blocker audio_chunk audio_chunk_channel_config \
-	cfg_var cfg_var_legacy commonObjects completion_notify configStore console file_info file_info_impl file_info_merge filesystem filesystem_helper foosort foosortstring \
+	cfg_var cfg_var_legacy commonObjects completion_notify configStore console file_info file_info_impl file_info_merge filesystem filesystem_helper foosort \
 	fsItem guids input input_file_type main_thread_callback metadb_handle metadb_handle_list playable_location playlist preferences_page replaygain_info service titleformat utility
-FOOBAR2000_PFC_FILES = audio_math audio_sample bit_array bsearch guid other pathUtils \
+FOOBAR2000_PFC_FILES = audio_math audio_sample bit_array bsearch cpuid filehandle guid other pathUtils \
 	sort splitString2 string-compare string-lite string_base string_conv string-conv-lite threads timers unicode-normalize utf8 win-objects
 
 win32/foo_asap.dll: $(FOOBAR2000_SRC) win32/foobar2000/foobar2000_SDK.lib win32/foobar2000/pfc.lib $(FOOBAR2000_SDK_DIR)/foobar2000/shared/shared-Win32.lib

@@ -1,6 +1,6 @@
 // asap.fu - emulation engine
 //
-// Copyright (C) 2010-2023  Piotr Fusik
+// Copyright (C) 2010-2024  Piotr Fusik
 //
 // This file is part of ASAP (Another Slight Atari Player),
 // see http://asap.sourceforge.net
@@ -602,9 +602,9 @@ public class ASAP
 		int blockShift = ModuleInfo.GetChannels() - (format == ASAPSampleFormat.U8 ? 1 : 0);
 		int bufferBlocks = bufferLen >> blockShift;
 		if (CurrentDuration > 0) {
-			int totalBlocks = MillisecondsToBlocks(CurrentDuration);
-			if (bufferBlocks > totalBlocks - BlocksPlayed)
-				bufferBlocks = totalBlocks - BlocksPlayed;
+			int remainingBlocks = MillisecondsToBlocks(CurrentDuration) - BlocksPlayed;
+			if (bufferBlocks > remainingBlocks)
+				bufferBlocks = remainingBlocks;
 		}
 		int block = 0;
 		for (;;) {

@@ -11,8 +11,8 @@ typedef unsigned __int64 QWORD;
 extern "C" {
 #endif
 
-// Note all texts are UTF-8 on WinNT based systems and ANSI on Win9x
-#define Utf2Uni(src,slen,dst,dlen) MultiByteToWideChar(CP_UTF8,0,src,slen,dst,dlen) // convert UTF-8 to Windows Unicode/WideChar
+// Note all XMPlay texts are UTF-8 on WinNT based systems and ANSI on Win9x
+#define Utf2Uni(src,slen,dst,dlen) MultiByteToWideChar(CP_UTF8,0,src,slen,dst,dlen) // convert UTF-8 to UTF-16
 
 typedef void *(WINAPI *InterfaceProc)(DWORD face); // XMPlay interface retrieval function received by plugin
 
@@ -62,7 +62,9 @@ typedef struct {
 typedef struct {
 	DWORD rate;		// sample rate
 	DWORD chan;		// channels
-	DWORD res;		// bytes per sample (1=8-bit,2=16-bit,3=24-bit,4=float,0=undefined)
+	WORD res;		// bytes per sample (1=8-bit,2=16-bit,3=24-bit,4=float,0=undefined)
+// version 3.8.4
+	WORD chanmask;	// SPEAKER flags (0=default)
 } XMPFORMAT;
 
 typedef struct {
@@ -78,6 +80,7 @@ typedef struct {
 #define TAG_SUBSONGS			(char*)-5 // subsong count
 #define TAG_SUBSONG				(char*)-6 // separated subsong (number/total)
 #define TAG_RATING				(char*)-7 // user rating
+#define TAG_TRACK_URL			(char*)-8 // stream track URL
 #define TAG_TITLE				(char*)0 // = "title"
 #define TAG_ARTIST				(char*)1 // = "artist"
 #define TAG_ALBUM				(char*)2 // = "album"
@@ -143,7 +146,7 @@ typedef struct { // file functions
 	};
 	// net-only stuff
 	void (WINAPI *NetSetRate)(XMPFILE file, DWORD rate); // set bitrate in bytes/sec (decides buffer size)
-	BOOL (WINAPI *NetIsActive)(XMPFILE file); // connection is still up?
+	int (WINAPI *NetIsActive)(XMPFILE file); // still connected? (1=connected, 2=seeking/reconnecting)
 	BOOL (WINAPI *NetPreBuf)(XMPFILE file); // pre-buffer data
 	DWORD (WINAPI *NetAvailable)(XMPFILE file); // get amount of data ready to go
 
@@ -153,6 +156,9 @@ typedef struct { // file functions
 // version 3.8.2
 	XMPFILE (WINAPI *OpenRange)(const char *filename, QWORD offset, QWORD length); // open a file range (length=0=to EOF)
 	BOOL (WINAPI *Seek64)(XMPFILE file, QWORD pos); // seek in file (64-bit)
+
+// version 4.0
+	QWORD (WINAPI *GetOffset)(XMPFILE file); // get start offset
 } XMPFUNC_FILE;
 
 typedef struct { // text functions - return new string in native form (UTF-8/ANSI)
@@ -183,6 +189,8 @@ typedef struct { // playback status functions
 #define IPC_GETLISTPOS 125
 #define IPC_GETPLAYLISTFILE 211
 #define IPC_GETPLAYLISTTITLE 212
+#define IPC_GETINIFILE 334
+#define IPC_GETINIDIRECTORY 335
 
 #ifdef __cplusplus
 }

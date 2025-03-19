@@ -33,7 +33,7 @@ www/PORTS.xsl: $(srcdir)PORTS.xsl
 	$(COPY)
 
 browser: www/web.html www/asap.js www/asapweb.js
-	$(LOCALAPPDATA)/Programs/Opera/launcher --allow-file-access-from-files file:///$(shell cygpath -am $<)
+	$(LOCALAPPDATA)/Programs/Opera/opera --allow-file-access-from-files file:///$(shell cygpath -am $<)
 .PHONY: browser
 
 sftp:
