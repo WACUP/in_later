@@ -509,9 +509,9 @@ static int play(const in_char *fn)
 			return 1;
 
 		const int channels = ASAPInfo_GetChannels(info);
-		const int maxlatency = (plugin.outMod->Open && sample_rate && channels ?
-								plugin.outMod->Open(sample_rate, channels,
-												 BITS_PER_SAMPLE, -1, -1) : -1);
+		const int maxlatency = (plugin.outMod && plugin.outMod->Open && sample_rate &&
+								channels ? plugin.outMod->Open(sample_rate, channels,
+														BITS_PER_SAMPLE, -1, -1) : -1);
 		if (maxlatency < 0)
 			return 1;
 
@@ -559,7 +559,7 @@ static int isPaused(void)
 
 static void stop(void)
 {
-	if (thread_handle != NULL)
+	if (CheckThreadHandleIsValid(&thread_handle))
 	{
 		thread_run = false;
 		// wait max 10 seconds
