@@ -73,13 +73,13 @@ bool loadModule(LPCTSTR filename, BYTE *module, int *module_len, LPCTSTR *module
 		memcpy(atr_filename, filename, (hashW - filename) * sizeof(_TCHAR));
 		atr_filename[hashW - filename] = '\0';
 		ok = false;
-		AutoCharFn atr_fn(atr_filename);
+		const AutoCharFn atr_fn(atr_filename);
 		AATR *disk = AATRStdio_New(atr_fn);
 		if (disk != NULL) {
 			AATRDirectory *directory = AATRDirectory_New();
 			if (directory != NULL) {
 				AATRDirectory_OpenRoot(directory, disk);
-				AutoChar hash(hashW);
+				const AutoChar hash(hashW);
 				if (AATRDirectory_FindEntryRecursively(directory, hash + 1) && !AATRDirectory_IsEntryDirectory(directory)) {
 					AATRFileStream *stream = AATRFileStream_New();
 					if (stream != NULL) {

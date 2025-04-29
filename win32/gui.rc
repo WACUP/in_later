@@ -21,254 +21,119 @@
  * 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
  */
 
-#if defined(WASAP) || defined(WINAMP) || defined(FOOBAR2000) || defined(XMPLAY)
-#include <windows.h>
-#define IDC_STATIC  -1
-#endif
+// Microsoft Visual C++ generated resource script.
+//
+#include "resource.h"
 
-#include "../asap.h"
+#define APSTUDIO_READONLY_SYMBOLS
+/////////////////////////////////////////////////////////////////////////////
+//
+// Generated from the TEXTINCLUDE 2 resource.
+//
+#include "winres.h"
 
-#ifdef WASAP
+/////////////////////////////////////////////////////////////////////////////
+#undef APSTUDIO_READONLY_SYMBOLS
 
-#include "wasap/wasap.h"
+/////////////////////////////////////////////////////////////////////////////
+// English (United Kingdom) resources
 
-#define FILE_DESCRIPTION "WASAP - Windows Another Slight Atari Player"
-#define INTERNAL_NAME "wasap"
-#define ORIGINAL_FILENAME "wasap.exe"
-#define FILE_TYPE 1
+#if !defined(AFX_RESOURCE_DLL) || defined(AFX_TARG_ENG)
+LANGUAGE LANG_ENGLISH, SUBLANG_ENGLISH_UK
+#pragma code_page(1252)
 
-IDI_APP ICON "wasap/wasap.ico"
-IDI_STOP ICON "wasap/stop.ico"
-IDI_PLAY ICON "wasap/play.ico"
-
-IDR_TRAYMENU MENU
-{
-	POPUP "WASAP"
-	{
-		MENUITEM "&Open...", IDM_OPEN
-		POPUP "So&ng", GRAYED
-		{
-			MENUITEM "&1", IDM_SONG1
-		}
-		MENUITEM "&Stop", IDM_STOP, GRAYED
-#ifndef _UNICODE /* TODO */
-		MENUITEM "File &information...", IDM_FILE_INFO, GRAYED
-#endif
-		MENUITEM "Save as &WAV...", IDM_SAVE_WAV, GRAYED
-		MENUITEM "&About WASAP...", IDM_ABOUT
-		MENUITEM "&Exit", IDM_EXIT
-	}
-}
-
-1 24
-{
-	"<?xml version=""1.0""?>"
-	"<assembly xmlns=""urn:schemas-microsoft-com:asm.v1"" manifestVersion=""1.0"">"
-		"<assemblyIdentity type=""win32"" name=""WASAP"" version=""" ASAPInfo_VERSION ".0"" />"
-	"<dependency>"
-		"<dependentAssembly>"
-		"<assemblyIdentity type=""win32"" name=""Microsoft.Windows.Common-Controls"" version=""6.0.0.0"" "
-			"processorArchitecture=""*"" publicKeyToken=""6595b64144ccf1df"" language=""*"" />"
-		"</dependentAssembly>"
-	"</dependency>"
-	"<application xmlns=""urn:schemas-microsoft-com:asm.v3"">"
-		"<windowsSettings>"
-			"<dpiAware xmlns=""http://schemas.microsoft.com/SMI/2005/WindowsSettings"">True/PM</dpiAware>"
-			"<dpiAwareness xmlns=""http://schemas.microsoft.com/SMI/2016/WindowsSettings"">PerMonitorV2,PerMonitor</dpiAwareness>"
-		"</windowsSettings>"
-	"</application>"
-	"</assembly>"
-}
-
-#endif /* WASAP */
-
-#if defined(WINAMP)
-#  define APP_NAME "Winamp"
-#  define INTERNAL_NAME "in_asap"
-#include "winamp\resource.h"
-#elif defined(FOOBAR2000)
-#  define APP_NAME "foobar2000"
-#  define INTERNAL_NAME "foo_asap"
-#elif defined(XMPLAY)
-#  define APP_NAME "XMPlay"
-#  define INTERNAL_NAME "xmp-asap"
-#elif defined(BASS)
-#  define INTERNAL_NAME "bass_asap"
-#  define FILE_DESCRIPTION "ASAP add-on for BASS"
-#elif defined(APOKEYSND)
-#  define INTERNAL_NAME "apokeysnd"
-#  define FILE_DESCRIPTION "Another POKEY sound emulator"
-#elif defined(SHELLEX)
-#  define INTERNAL_NAME "ASAPShellEx"
-#  define FILE_DESCRIPTION "ASAP Windows Explorer extension"
-#elif defined(VLC)
-#  define APP_NAME "VLC"
-#  define INTERNAL_NAME "libasap_plugin"
-#endif
-
-#ifndef FILE_DESCRIPTION
-#  define FILE_DESCRIPTION "ASAP " APP_NAME " plugin"
-#endif
-#ifndef ORIGINAL_FILENAME
-#  define ORIGINAL_FILENAME INTERNAL_NAME ".dll"
-#  define FILE_TYPE 2
-#endif
-
-#if defined(WINAMP) || defined(FOOBAR2000) || defined(XMPLAY)
-
-#include "settings_dlg.h"
-
-IDD_SETTINGS DIALOG 0, 0, 184, 234
-#ifdef FOOBAR2000
-STYLE WS_CHILD
-#else
-STYLE DS_3DLOOK | DS_CENTER | DS_MODALFRAME | WS_POPUPWINDOW
-CAPTION "ASAP Decoder Preferences"
-#endif
-FONT 8, "MS Shell Dlg"
-{
-	GROUPBOX "Songs with unspecified length", IDC_STATIC, 8, 4, 168, 64
-	AUTORADIOBUTTON "Play endlessly", IDC_UNLIMITED, 16, 16, 152, 12, BS_AUTORADIOBUTTON | WS_TABSTOP | WS_GROUP
-	AUTORADIOBUTTON "Finish after", IDC_LIMITED, 16, 30, 48, 12
-	EDITTEXT IDC_MINUTES, 68, 30, 16, 12, ES_NUMBER | ES_RIGHT | WS_BORDER | WS_TABSTOP
-	LTEXT "m", IDC_STATIC, 88, 32, 10, 12
-	EDITTEXT IDC_SECONDS, 100, 30, 16, 12, ES_NUMBER | ES_RIGHT | WS_BORDER | WS_TABSTOP
-	LTEXT "s", IDC_STATIC, 120, 32, 10, 12
-	AUTOCHECKBOX "Finish after", IDC_SILENCE, 16, 50, 48, 12
-	EDITTEXT IDC_SILSECONDS, 68, 48, 16, 12, ES_NUMBER | ES_RIGHT | WS_BORDER | WS_TABSTOP
-	LTEXT "seconds of silence", IDC_STATIC, 88, 50, 64, 12
-	GROUPBOX "Loops", IDC_STATIC, 8, 72, 168, 46
-	AUTORADIOBUTTON "Play as above", IDC_LOOPS, 16, 84, 152, 12, BS_AUTORADIOBUTTON | WS_TABSTOP | WS_GROUP
-	AUTORADIOBUTTON "Play just once", IDC_NOLOOPS, 16, 98, 152, 12
-	GROUPBOX "Mute base POKEY", IDC_STATIC, 8, 122, 80, 64
-	AUTOCHECKBOX "Channel 1", IDC_MUTE1, 24, 132, 48, 12
-	AUTOCHECKBOX "Channel 2", IDC_MUTE1 + 1, 24, 144, 48, 12
-	AUTOCHECKBOX "Channel 3", IDC_MUTE1 + 2, 24, 156, 48, 12
-	AUTOCHECKBOX "Channel 4", IDC_MUTE1 + 3, 24, 168, 48, 12
-	GROUPBOX "Mute extra POKEY", IDC_STATIC, 96, 122, 80, 64
-	AUTOCHECKBOX "Channel 1", IDC_MUTE1 + 4, 112, 132, 48, 12
-	AUTOCHECKBOX "Channel 2", IDC_MUTE1 + 5, 112, 144, 48, 12
-	AUTOCHECKBOX "Channel 3", IDC_MUTE1 + 6, 112, 156, 48, 12
-	AUTOCHECKBOX "Channel 4", IDC_MUTE1 + 7, 112, 168, 48, 12
-	LTEXT "Output sample rate:", IDC_STATIC, 10, 192, 64, 12
-	COMBOBOX IDC_SAMPLERATE, 80, 191, 44, 12, CBS_DROPDOWNLIST | WS_TABSTOP
-#  ifndef FOOBAR2000
-	DEFPUSHBUTTON "OK", IDOK, 38, 210, 50, 14
-	PUSHBUTTON "Cancel", IDCANCEL, 96, 210, 50, 14
-#  endif
-}
-
-#endif /* defined(WINAMP) || defined(FOOBAR2000) || defined(XMPLAY) */
-
-#if defined(WASAP) || defined(WINAMP) || defined(FOOBAR2000) || defined(XMPLAY)
-
-#include "info_dlg.h"
-
-#ifndef _UNICODE /* TODO */
-
-#define INFO_W  270
-#ifdef PLAYING_INFO
-#define INFO_Y  18
-#else
-#define INFO_Y  0
-#endif
-IDD_INFO DIALOG 0, 0, 54 + INFO_W, 214 + INFO_Y
-STYLE DS_3DLOOK | DS_CENTER | DS_MODALFRAME | WS_POPUPWINDOW | WS_VISIBLE
-CAPTION "File information"
-FONT 8, "MS Shell Dlg"
-{
-#ifdef PLAYING_INFO
-	AUTOCHECKBOX "Show information about the currently &playing file", IDC_PLAYING, 46, 8, 284, 12
-#endif
-	RTEXT "&Filename:", IDC_STATIC, 8, 10 + INFO_Y, 32, 12
-	EDITTEXT IDC_FILENAME, 46, 8 + INFO_Y, INFO_W, 12, ES_LEFT | ES_AUTOHSCROLL | ES_READONLY | WS_BORDER | WS_TABSTOP
-	RTEXT "&Author:", IDC_STATIC, 8, 24 + INFO_Y, 32, 12
-	EDITTEXT IDC_AUTHOR, 46, 22 + INFO_Y, INFO_W, 12, ES_LEFT | ES_AUTOHSCROLL | WS_BORDER | WS_TABSTOP
-	RTEXT "&Name:", IDC_STATIC, 8, 38 + INFO_Y, 32, 12
-	EDITTEXT IDC_NAME, 46, 36 + INFO_Y, INFO_W, 12, ES_LEFT | ES_AUTOHSCROLL | WS_BORDER | WS_TABSTOP
-	RTEXT "&Date:", IDC_STATIC, 8, 52 + INFO_Y, 32, 12
-	EDITTEXT IDC_DATE, 46, 50 + INFO_Y, INFO_W - 56, 12, ES_LEFT | ES_AUTOHSCROLL | WS_BORDER | WS_TABSTOP
-	PUSHBUTTON "Pick date", IDC_PICKDATE, INFO_W - 4, 49 + INFO_Y, 50, 14
-	RTEXT "S&ong:", IDC_STATIC, 8, 66 + INFO_Y, 32, 12
-	COMBOBOX IDC_SONGNO, 46, 64 + INFO_Y, 26, 12, CBS_DROPDOWNLIST | WS_TABSTOP
-	RTEXT "&Time:", IDC_STATIC, 80, 66 + INFO_Y, 20, 12
-	EDITTEXT IDC_TIME, 108, 64 + INFO_Y, 40, 12
-	AUTOCHECKBOX "&Loop", IDC_LOOP, 156, 64 + INFO_Y, 40, 12
-	AUTOCHECKBOX "NTSC", IDC_NTSC, INFO_W + 6, 64 + INFO_Y, 40, 12
-	RTEXT "Technical:", IDC_STATIC, 8, 82 + INFO_Y, 32, 12
-	EDITTEXT IDC_TECHINFO, 46, 82 + INFO_Y, INFO_W, 48, ES_LEFT | ES_AUTOVSCROLL | ES_MULTILINE | ES_READONLY | WS_BORDER | WS_TABSTOP | WS_VSCROLL
-	RTEXT "STIL file:", IDC_STATIC, 8, 132 + INFO_Y, 32, 12
-	EDITTEXT IDC_STILFILE, 46, 132 + INFO_Y, INFO_W, 12, ES_LEFT | ES_AUTOHSCROLL | ES_READONLY | WS_BORDER | WS_TABSTOP
-	RTEXT "STIL info:", IDC_STATIC, 8, 144 + INFO_Y, 32, 12
-	EDITTEXT IDC_STILINFO, 46, 144 + INFO_Y, INFO_W, 48, ES_LEFT | ES_AUTOVSCROLL | ES_MULTILINE | ES_READONLY | WS_BORDER | WS_TABSTOP | WS_VSCROLL
-	DEFPUSHBUTTON "&Save", IDC_SAVE, INFO_W - 140, 194 + INFO_Y, 50, 14
-	PUSHBUTTON "Save as...", IDC_SAVEAS, INFO_W - 82, 194 + INFO_Y, 70, 14
-	PUSHBUTTON "Close", IDCANCEL, INFO_W - 4, 194 + INFO_Y, 50, 14
-}
-
-#endif /* _UNICODE */
-
-#endif /* defined(WASAP) || defined(WINAMP) || defined(FOOBAR2000) || defined(XMPLAY) */
-
-#if defined(WASAP) //|| defined(WINAMP)
-
-#include <commctrl.h>
-
-IDD_PROGRESS DIALOG 0, 0, 160, 48
-STYLE DS_3DLOOK | DS_CENTER | DS_MODALFRAME | WS_POPUP | WS_VISIBLE
-CAPTION "Please wait"
-FONT 8, "MS Shell Dlg"
-{
-#ifdef WASAP
-	CTEXT "Writing WAV file", IDC_STATIC, 8, 8, 144, 12
-#else
-	CTEXT "Adding subsongs to the playlist", IDC_STATIC, 8, 8, 144, 12
-#endif
-	CONTROL "", IDC_PROGRESS, PROGRESS_CLASS, 0, 8, 24, 144, 12
-}
-
-#endif /* defined(WASAP) || defined(WINAMP) */
+/////////////////////////////////////////////////////////////////////////////
+//
+// Version
+//
 
 1 VERSIONINFO
-	FILEVERSION ASAPInfo_VERSION_MAJOR, ASAPInfo_VERSION_MINOR, ASAPInfo_VERSION_MICRO, ASAPInfo_VERSION_PATCH
-	PRODUCTVERSION ASAPInfo_VERSION_MAJOR, ASAPInfo_VERSION_MINOR, ASAPInfo_VERSION_MICRO, ASAPInfo_VERSION_PATCH
-	FILEFLAGSMASK 0x17L
+ FILEVERSION 6,0,3,18
+ PRODUCTVERSION 6,0,3,18
+ FILEFLAGSMASK 0x17L
 #ifdef _DEBUG
-	FILEFLAGS 0x1L
+ FILEFLAGS 0x1L
 #else
-	FILEFLAGS 0x0L
+ FILEFLAGS 0x0L
 #endif
-	FILEOS 0x40004L
-	FILETYPE FILE_TYPE
-	FILESUBTYPE 0x0L
-{
-	BLOCK "StringFileInfo"
-	{
-		BLOCK "080904b0"
-		{
-			VALUE "CompanyName", "WACUP\0"
-			VALUE "FileDescription", "Input Plug-in\0"
-			VALUE "FileVersion", ASAPInfo_VERSION "\0"
-			VALUE "InternalName", "in_later.dll\0"
-			VALUE "LegalCopyright", "Copyleft " ASAPInfo_YEARS " Piotr Fusik. WACUP related modifications by Darren Owen aka DrO (2023-2025)\0"
-			VALUE "OriginalFilename", "in_later.dll\0"
-			VALUE "ProductName", "ASAP (Another Slight Atari Player) Decoder\0"
-			VALUE "ProductVersion", ASAPInfo_VERSION "\0"
-		}
-	}
-	BLOCK "VarFileInfo"
-	{
-		VALUE "Translation", 0x809, 1200
-	}
-}
+ FILEOS 0x40004L
+ FILETYPE 0x2L
+ FILESUBTYPE 0x0L
+BEGIN
+    BLOCK "StringFileInfo"
+    BEGIN
+        BLOCK "080904b0"
+        BEGIN
+            VALUE "CompanyName", "WACUP"
+            VALUE "FileDescription", "Input Plug-in"
+            VALUE "FileVersion", "6.0.3.18"
+            VALUE "InternalName", "in_later.dll"
+            VALUE "LegalCopyright", "Copyleft 2005-2025 Piotr Fusik. WACUP related modifications by Darren Owen aka DrO (2023-2025)"
+            VALUE "OriginalFilename", "in_later.dll"
+            VALUE "ProductName", "ASAP (Another Slight Atari Player) Decoder"
+            VALUE "ProductVersion", "6.0.3.18"
+        END
+    END
+    BLOCK "VarFileInfo"
+    BEGIN
+        VALUE "Translation", 0x809, 1200
+    END
+END
 
 
-#if defined(WINAMP)
+#ifdef APSTUDIO_INVOKED
+/////////////////////////////////////////////////////////////////////////////
+//
+// TEXTINCLUDE
+//
+
+1 TEXTINCLUDE 
+BEGIN
+    "resource.h\0"
+END
+
+2 TEXTINCLUDE 
+BEGIN
+    "\0"
+END
+
+3 TEXTINCLUDE 
+BEGIN
+    "\r\n"
+    "\0"
+END
+
+#endif    // APSTUDIO_INVOKED
+
+
+/////////////////////////////////////////////////////////////////////////////
+//
+// String Table
+//
 
 STRINGTABLE
 BEGIN
-IDS_PLUGIN_NAME         "ASAP Decoder v%s"
-65535                   "{AFE5A171-710D-471d-A927-FF68AA4BA84B}"
+    IDS_ABOUT_TITLE         "ASAP (Another Slight Atari Player) Decoder"
 END
 
-#endif
+STRINGTABLE
+BEGIN
+    IDS_PLUGIN_NAME         "ASAP Decoder v%s"
+    65535                   "{AFE5A171-710D-471d-A927-FF68AA4BA84B}"
+END
+
+#endif    // English (United Kingdom) resources
+/////////////////////////////////////////////////////////////////////////////
+
+
+
+#ifndef APSTUDIO_INVOKED
+/////////////////////////////////////////////////////////////////////////////
+//
+// Generated from the TEXTINCLUDE 3 resource.
+//
+
+
+/////////////////////////////////////////////////////////////////////////////
+#endif    // not APSTUDIO_INVOKED
+

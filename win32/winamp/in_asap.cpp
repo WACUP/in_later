@@ -42,7 +42,7 @@
 #include "asap.h"
 #include "..\info_dlg.h"
 #include "..\settings_dlg.h"
-#include "..\winamp\resource.h"
+#include "win32\resource.h"
 #include "..\..\astil.h"
 
  // wasabi based services for localisation support
@@ -122,7 +122,7 @@ static void config(HWND hwndParent)
 {
 	read_config();
 
-	WASABI_API_DIALOGBOXW(IDD_SETTINGS, hwndParent, settingsDialogProc);
+	LangCreateDialogBox(IDD_SETTINGS, hwndParent, settingsDialogProc, 0);
 
 #if 0
 	if (settingsDialog(plugin.hDllInstance, hwndParent))
@@ -141,10 +141,10 @@ static void about(HWND hwndParent)
 {
 	wchar_t message[1024] = { 0 }, title[1024] = { 0 };
 	// TODO localise
-	StringCchPrintf(message, ARRAYSIZE(message), TEXT("%s\n\n%hs\nWACUP modifications by "
-					"%s (2023-%s)\n\nBuild date: %s\n\n%hs"), (wchar_t*)plugin.description,
-					ASAPInfo_CREDITS, WACUP_Author(), WACUP_Copyright(), TEXT(__DATE__),
-					ASAPInfo_COPYRIGHT);
+	PrintfCch(message, ARRAYSIZE(message), TEXT("%s\n\n%hs\nWACUP modifications by "
+			  "%s (2023-%s)\n\nBuild date: %s\n\n%hs"), (wchar_t*)plugin.description,
+			  ASAPInfo_CREDITS, WACUP_Author(), WACUP_Copyright(), TEXT(__DATE__),
+			  ASAPInfo_COPYRIGHT);
 	AboutMessageBox(hwndParent, message, L"ASAP Decoder");
 }
 
@@ -295,9 +295,8 @@ static int init(void)
 {
 	InitializeCriticalSectionEx(&g_info_cs, 400, CRITICAL_SECTION_NO_DEBUG_INFO);
 
-	WASABI_API_START_LANG_DESC(plugin.language, plugin.hDllInstance,
-							   InASAPLangGUID, IDS_PLUGIN_NAME,
-							   TEXT(ASAPInfo_VERSION), &plugin.description);
+	StartPluginLangWithDesc(plugin.hDllInstance, InASAPLangGUID, IDS_PLUGIN_NAME,
+									TEXT(ASAPInfo_VERSION), &plugin.description);
 
 	return IN_INIT_SUCCESS;
 }
@@ -398,7 +397,7 @@ static void getFileInfo(const in_char *file, in_char *title, int *length_in_ms)
 
 static int isOurFile(IN_ISOURFILE_PARAM)
 {
-	if (!IsAnUrl(fn))
+	if (!IsPathURL(fn))
 	{
 		wchar_t filename[FILENAME_SIZE] = { 0 };
 		extractSongNumber(fn, filename);
@@ -407,7 +406,7 @@ static int isOurFile(IN_ISOURFILE_PARAM)
 #endif
 		if (ext)
 		{
-			AutoChar ext8(ext);
+			const AutoChar ext8(ext);
 			return ASAPInfo_IsOurExt(ext8);
 		}
 	}
@@ -485,7 +484,7 @@ static int play(const in_char *fn)
 
 		if (playing_module == NULL)
 		{
-			playing_module = (BYTE*)plugin.memmgr->sysMalloc(ASAPInfo_MAX_MODULE_LENGTH);
+			playing_module = (BYTE*)SafeMalloc(ASAPInfo_MAX_MODULE_LENGTH);
 		}
 
 		if (!loadModule(filename, playing_module, &playing_module_len, NULL))
@@ -494,7 +493,7 @@ static int play(const in_char *fn)
 		EnterCriticalSection(&g_info_cs);
 		if (playing_filename_with_song)
 		{
-			plugin.memmgr->sysFree(playing_filename_with_song);
+			SafeFree(playing_filename_with_song);
 		}
 		playing_filename_with_song = AutoCharFnDup(filename);
 		LeaveCriticalSection(&g_info_cs);
@@ -615,22 +614,36 @@ static void setPan(int pan)
 
 void GetFileExtensions(void)
 {
-	static bool loaded_extensions;
-	if (!loaded_extensions)
+	if (!plugin.FileExtensions)
 	{
-		loaded_extensions = true;
+		LPCWSTR extensions[]
+		{
+			{ L"SAP" },
+			{ L"CMC;CM3;CMR;CMS;DMC" },
+			{ L"DLT" },
+			{ L"MPT;MPD" },
+			{ L"RMT" },
+			{ L"TMC;TM8" },
+			{ L"TM2" },
+			{ L"FC" },
+			{ L"ATR" }
+		},
+			// TODO localise
+			descriptions[]
+		{
+			{ L"Slight Atari Player (*.SAP)" },
+			{ L"Chaos Music Composer (*.CMC;*.CM3;*.CMR;*.CMS;*.DMC)" },
+			{ L"Delta Music Composer (*.DLT)" },
+			{ L"Music ProTracker (*.MPT;*.MPD)" },
+			{ L"Raster Music Tracker (*.RMT)" },
+			{ L"Theta Music Composer 1.x (*.TMC;*.TM8)" },
+			{ L"Theta Music Composer 2.x (*.TM2)" },
+			{ L"Future Composer (*.FC)" },
+			{ L"Atari 8-bit Disk Image (*.ATR)" },
+		};
 
-		// TODO localise
-		plugin.FileExtensions = (char*)L"SAP\0Slight Atari Player (*.SAP)\0"
-									   L"CMC;CM3;CMR;CMS;DMC\0Chaos Music Composer "
-									   L"(*.CMC;*.CM3;*.CMR;*.CMS;*.DMC)\0"
-									   L"DLT\0Delta Music Composer (*.DLT)\0"
-									   L"MPT;MPD\0Music ProTracker (*.MPT;*.MPD)\0"
-									   L"RMT\0Raster Music Tracker (*.RMT)\0"
-									   L"TMC;TM8\0Theta Music Composer 1.x (*.TMC;*.TM8)\0"
-									   L"TM2\0Theta Music Composer 2.x (*.TM2)\0"
-									   L"FC\0Future Composer (*.FC)\0"
-									   L"ATR\0Atari 8-bit Disk Image (*.ATR)\0";
+		plugin.FileExtensions = BuildInputFileListArrayString(extensions, descriptions,
+													ARRAYSIZE(extensions), NULL, NULL);
 	}
 }
 
@@ -683,7 +696,7 @@ extern "C" __declspec(dllexport) int winampUninstallPlugin(HINSTANCE hDllInst, H
 {
 	// TODO
 	// prompt to remove our settings with default as no (just incase)
-	/*if (plugin.language->UninstallSettingsPrompt(reinterpret_cast<const wchar_t*>(plugin.description)))
+	/*if (UninstallSettingsPrompt(reinterpret_cast<const wchar_t*>(plugin.description)))
 	{
 		REMOVE_INI_SECTION_W(app_nameW, 0);
 	}*/
@@ -720,7 +733,7 @@ BOOL GetExtensionName(LPCWSTR pszExt, LPWSTR pszDest, INT cchDest)
 	int index = sizeof(pExtList) / sizeof(wchar_t*) - 1;
 	for (; (index >= 0) && (CSTR_EQUAL != CompareStringEx(LOCALE_NAME_INVARIANT, NORM_IGNORECASE, pszExt,
 													  -1, pExtList[index], -1, NULL, NULL, 0)); index--);
-	return ((index >= 0) && (StringCchCopy(pszDest, cchDest, pExtDescList[index]) == S_OK));
+	return ((index >= 0) && CopyCchStr(pszDest, cchDest, pExtDescList[index]));
 }
 
 // return 1 if you want winamp to show it's own file info dialogue, 0 if you want to show your own (via In_Module.InfoBox)
@@ -902,7 +915,7 @@ static int get_metadata(const char* filename, const ASAPInfo* info, int song,
 	}
 	else if (SameStrA(data, "genre"))
 	{
-		StringCchCopy(dest, destlen, L"Video Game Music");
+		CopyCchStr(dest, destlen, L"Video Game Music");
 		return 1;
 	}
 	else if (SameStrA(data, "comment"))
@@ -923,7 +936,7 @@ static int get_metadata(const char* filename, const ASAPInfo* info, int song,
 
 		if (astil)
 		{
-			char* buf = (char*)plugin.memmgr->sysMalloc(16000);
+			char* buf = (char*)SafeMalloc(16000);
 			if (buf)
 			{
 				char* p = buf;
@@ -968,7 +981,7 @@ static int get_metadata(const char* filename, const ASAPInfo* info, int song,
 
 				ConvertANSI(buf, -1, (ASTIL_IsUTF8(astil) ? CP_UTF8 : CP_ACP), dest, destlen);
 
-				plugin.memmgr->sysFree(buf);
+				SafeFree(buf);
 			}
 			return 1;
 		}
@@ -1060,24 +1073,24 @@ extern "C" __declspec(dllexport) int winampGetExtendedFileInfoW(const wchar_t *f
 	{
 		if (last_info_filename != NULL)
 		{
-			plugin.memmgr->sysFree(last_info_filename);
+			SafeFree(last_info_filename);
 			last_info_filename = NULL;
 		}
 
 		if (!reset)
 		{
-			last_info_filename = plugin.memmgr->sysDupStr(file);
+			last_info_filename = SafeAnsiDup(file);
 
 			if (title_module == NULL)
 			{
-				title_module = (BYTE*)plugin.memmgr->sysMalloc(ASAPInfo_MAX_MODULE_LENGTH);
+				title_module = (BYTE*)SafeMalloc(ASAPInfo_MAX_MODULE_LENGTH);
 			}
 
 			LPCTSTR hashW = NULL;
 			if (loadModule(filename, title_module, &title_module_len, &hashW))
 			{
 				//LPCTSTR hashW = atrFilenameHash(filename);
-				AutoChar hash(hashW);
+				const AutoChar hash(hashW);
 
 				if (title_info == NULL)
 				{
@@ -1103,7 +1116,7 @@ extern "C" __declspec(dllexport) int winampGetExtendedFileInfoW(const wchar_t *f
 
 		if (title_module != NULL)
 		{
-			plugin.memmgr->sysFree(title_module);
+			SafeFree(title_module);
 			title_module = NULL;
 		}
 
@@ -1152,7 +1165,7 @@ extern "C" __declspec(dllexport) intptr_t winampGetExtendedRead_openW(const wcha
 		int song = extractSongNumber(fn, filename);
 		if (loadModule(filename, e->module, &e->module_len, NULL))
 		{
-			AutoCharFn file(filename);
+			const AutoCharFn file(filename);
 			if (ASAP_Load(e->asap, file, e->module, e->module_len))
 			{
 				e->info = ASAP_GetInfo(e->asap);
@@ -1216,7 +1229,7 @@ const int get_songs_count(const char* fn, const wchar_t* inside_fn, AATRRecursiv
 				AATRFileStream_Open(stream, AATRRecursiveLister_GetDirectory(lister));
 			}
 
-			BYTE* playlist_module = (BYTE*)plugin.memmgr->sysMalloc(ASAPInfo_MAX_MODULE_LENGTH);
+			BYTE* playlist_module = (BYTE*)SafeMalloc(ASAPInfo_MAX_MODULE_LENGTH);
 			if (playlist_module != NULL)
 			{
 				int playlist_module_len = (lister ? AATRFileStream_Read(stream, playlist_module, 0,
@@ -1230,7 +1243,7 @@ const int get_songs_count(const char* fn, const wchar_t* inside_fn, AATRRecursiv
 						*songs += ASAPInfo_GetSongs(playlist_info);
 					}
 				}
-				plugin.memmgr->sysFree(playlist_module);
+				SafeFree(playlist_module);
 			}
 			ASAPInfo_Delete(playlist_info);
 			return true;
@@ -1244,7 +1257,7 @@ extern "C" __declspec(dllexport) int GetSubSongInfo(const wchar_t* filename)
 	wchar_t inside_fn[MAX_PATH] = { 0 };
 	extractSongNumber(filename, inside_fn);
 	int songs = 0;
-	AutoCharFn fn(inside_fn);
+	const AutoCharFn fn(inside_fn);
 	if (!get_songs_count(fn, inside_fn, NULL, NULL, &songs) && isATR(filename))
 	{
 		AATR *disk = AATRStdio_New(fn);
