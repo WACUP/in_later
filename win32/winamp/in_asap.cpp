@@ -278,7 +278,7 @@ static void expandPlaylistSongs(void)
 	processing = true;
 	ASAPInfo *info = ASAPInfo_New();
 	playlistLength = SendMessage(plugin.hMainWindow, WM_WA_IPC, 0, IPC_GETLISTLENGTH);
-	HWND progressWnd = CreateDialog(plugin.hDllInstance, MAKEINTRESOURCE(IDD_PROGRESS), plugin.hMainWindow, progressDialogProc);
+	HWND progressWnd = CreateDialogParam(plugin.hDllInstance, MAKEINTRESOURCE(IDD_PROGRESS), plugin.hMainWindow, progressDialogProc, NULL);
 	int index = playlistLength;
 	while (--index >= 0) {
 		if ((index & 15) == 0)
@@ -814,7 +814,7 @@ static int get_metadata(const char* filename, const ASAPInfo* info, int song,
 		const char* author = ASAPInfo_GetAuthor(info);
 		if (author && *author)
 		{
-			ConvertANSI(author, -1, CP_ACP, dest, destlen);
+			ConvertANSI(author, -1, CP_ACP, dest, destlen, NULL);
 			return 1;
 		}
 	}
@@ -823,7 +823,7 @@ static int get_metadata(const char* filename, const ASAPInfo* info, int song,
 		const char* title = ASAPInfo_GetTitle(info);
 		if (title && *title)
 		{
-			ConvertANSI(title, -1, CP_ACP, dest, destlen);
+			ConvertANSI(title, -1, CP_ACP, dest, destlen, NULL);
 			return 1;
 		}
 	}
@@ -840,7 +840,7 @@ static int get_metadata(const char* filename, const ASAPInfo* info, int song,
 			{
 				*space = 0;
 			}
-			ConvertANSI((slash ? (slash + 1) : date), -1, CP_ACP, dest, destlen);
+			ConvertANSI((slash ? (slash + 1) : date), -1, CP_ACP, dest, destlen, NULL);
 			return 1;
 		}
 	}
@@ -979,7 +979,7 @@ static int get_metadata(const char* filename, const ASAPInfo* info, int song,
 					p = appendStil(p, "Comment: ", ASTILCover_GetComment(cover));
 				}
 
-				ConvertANSI(buf, -1, (ASTIL_IsUTF8(astil) ? CP_UTF8 : CP_ACP), dest, destlen);
+				ConvertANSI(buf, -1, (ASTIL_IsUTF8(astil) ? CP_UTF8 : CP_ACP), dest, destlen, NULL);
 
 				SafeFree(buf);
 			}

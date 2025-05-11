@@ -235,7 +235,7 @@ INT_PTR CALLBACK settingsDialogProc(HWND hDlg, UINT uMsg, WPARAM wParam, LPARAM 
 #if 0
 bool settingsDialog(HINSTANCE hInstance, HWND hwndParent)
 {
-	return DialogBox(hInstance, MAKEINTRESOURCE(IDD_SETTINGS), hwndParent, settingsDialogProc) == IDOK;
+	return DialogBoxParam(hInstance, MAKEINTRESOURCE(IDD_SETTINGS), hwndParent, settingsDialogProc, NULL) == IDOK;
 }
 #endif
 

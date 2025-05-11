@@ -668,7 +668,7 @@ static INT_PTR CALLBACK infoDialogProc(HWND hDlg, UINT uMsg, WPARAM wParam, LPAR
 void showInfoDialog(HINSTANCE hInstance, HWND hwndParent, LPCTSTR filename, int song)
 {
 	if (infoDialog == NULL)
-		infoDialog = CreateDialog(hInstance, MAKEINTRESOURCE(IDD_INFO), hwndParent, infoDialogProc);
+		infoDialog = CreateDialogParam(hInstance, MAKEINTRESOURCE(IDD_INFO), hwndParent, infoDialogProc, NULL);
 	if (playing_info || filename == NULL)
 		updateInfoDialog(playing_filename, playing_song);
 	else
