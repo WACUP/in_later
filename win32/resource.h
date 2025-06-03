@@ -8,7 +8,7 @@
 #define ASAPWriter_MAX_SAVE_EXTS        3
 #define ASAPInfo_VERSION_MAJOR          6
 #define ASAPWriter_MAX_DURATION_LENGTH  9
-#define ASAPInfo_VERSION_PATCH          18
+#define ASAPInfo_VERSION_PATCH          19
 #define ASAPInfo_MAX_SONGS              32
 #define ASAPInfo_MAX_TEXT_LENGTH        127
 #define ASAP_SAMPLE_RATE                44100

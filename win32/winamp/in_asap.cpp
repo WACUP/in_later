@@ -558,18 +558,9 @@ static int isPaused(void)
 
 static void stop(void)
 {
-	if (CheckThreadHandleIsValid(&thread_handle))
-	{
-		thread_run = false;
-		// wait max 10 seconds
-		WaitForSingleObjectEx(thread_handle, 10 * 1000, TRUE);
-
-		if (thread_handle != NULL)
-		{
-			CloseHandle(thread_handle);
-			thread_handle = NULL;
-		}
-	}
+	thread_run = false;
+	// wait max 10 seconds
+	WaitForThreadToClose(&thread_handle, 10 * 1000/*/INFINITE/**/);
 
 	if (plugin.outMod && plugin.outMod->Close)
 	{
@@ -598,7 +589,7 @@ static void setOutputTime(int time_in_ms)
 
 static void setVolume(int volume)
 {
-	if (plugin.outMod)
+	if (plugin.outMod && plugin.outMod->SetVolume)
 	{
 		plugin.outMod->SetVolume(volume);
 	}
@@ -606,7 +597,7 @@ static void setVolume(int volume)
 
 static void setPan(int pan)
 {
-	if (plugin.outMod)
+	if (plugin.outMod && plugin.outMod->SetPan)
 	{
 		plugin.outMod->SetPan(pan);
 	}
