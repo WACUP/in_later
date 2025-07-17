@@ -399,7 +399,7 @@ static int isOurFile(IN_ISOURFILE_PARAM)
 {
 	if (!IsPathURL(fn))
 	{
-		wchar_t filename[FILENAME_SIZE] = { 0 };
+		wchar_t filename[FILENAME_SIZE]/* = { 0 }*/;
 		extractSongNumber(fn, filename);
 #ifndef _WIN64
 		LPCWSTR ext = FindPathExtension(filename);
@@ -479,7 +479,7 @@ static int play(const in_char *fn)
 	}
 	if (asap != NULL)
 	{
-		wchar_t filename[MAX_PATH] = { 0 };
+		wchar_t filename[MAX_PATH]/* = { 0 }*/;
 		int song = extractSongNumber(fn, filename);
 
 		if (playing_module == NULL)
@@ -1037,7 +1037,7 @@ extern "C" __declspec(dllexport) int winampGetExtendedFileInfoW(const wchar_t *f
 
 	read_config();
 
-	wchar_t filename[MAX_PATH] = { 0 };
+	wchar_t filename[MAX_PATH]/* = { 0 }*/;
 	const int title_song = extractSongNumber(fn, filename);
 
 	// if we're playing then try to get the metadata
@@ -1152,7 +1152,7 @@ extern "C" __declspec(dllexport) intptr_t winampGetExtendedRead_openW(const wcha
 	ExtendedRead* e = new ExtendedRead();
 	if (e)
 	{
-		wchar_t filename[MAX_PATH] = { 0 };
+		wchar_t filename[MAX_PATH]/* = { 0 }*/;
 		int song = extractSongNumber(fn, filename);
 		if (loadModule(filename, e->module, &e->module_len, NULL))
 		{
@@ -1245,7 +1245,7 @@ const int get_songs_count(const char* fn, const wchar_t* inside_fn, AATRRecursiv
 
 extern "C" __declspec(dllexport) int GetSubSongInfo(const wchar_t* filename)
 {
-	wchar_t inside_fn[MAX_PATH] = { 0 };
+	wchar_t inside_fn[MAX_PATH]/* = { 0 }*/;
 	extractSongNumber(filename, inside_fn);
 	int songs = 0;
 	const AutoCharFn fn(inside_fn);
