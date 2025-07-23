@@ -139,7 +139,7 @@ static void config(HWND hwndParent)
 
 static void about(HWND hwndParent)
 {
-	wchar_t message[1024] = { 0 }, title[1024] = { 0 };
+	wchar_t message[1024]/* = { 0 }*/;
 	// TODO localise
 	PrintfCch(message, ARRAYSIZE(message), TEXT("%s\n\n%hs\nWACUP modifications by "
 			  "%s (2023-%s)\n\nBuild date: %s\n\n%hs"), (wchar_t*)plugin.description,
@@ -1016,10 +1016,12 @@ extern "C" __declspec(dllexport) int winampGetExtendedFileInfoW(const wchar_t *f
 		dest[1] = L'\0';
 		return 1;
 	}
-	else if (SameStrA(data, "streamgenre") ||
-			 SameStrA(data, "streamtype") ||
-			 SameStrA(data, "streamurl") ||
-			 SameStrA(data, "streamname"))
+    else if (SameStrNA(data, "stream", 6) &&
+             (SameStrA((data + 6), "type") ||
+              SameStrA((data + 6), "genre") ||
+              SameStrA((data + 6), "url") ||
+              SameStrA((data + 6), "name") ||
+			  SameStrA((data + 6), "title")))
 	{
 		return 0;
 	}
