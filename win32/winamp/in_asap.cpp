@@ -607,30 +607,30 @@ void GetFileExtensions(void)
 {
 	if (!plugin.FileExtensions)
 	{
-		LPCWSTR extensions[]
+		const InputFileListArray extensions[]
 		{
-			{ L"SAP" },
-			{ L"CMC;CM3;CMR;CMS;DMC" },
-			{ L"DLT" },
-			{ L"MPT;MPD" },
-			{ L"RMT" },
-			{ L"TMC;TM8" },
-			{ L"TM2" },
-			{ L"FC" },
-			{ L"ATR" }
+			{ L"SAP", 3 },
+			{ L"CMC;CM3;CMR;CMS;DMC", 19 },
+			{ L"DLT", 3 },
+			{ L"MPT;MPD", 7 },
+			{ L"RMT", 3 },
+			{ L"TMC;TM8", 7 },
+			{ L"TM2", 3 },
+			{ L"FC", 2 },
+			{ L"ATR", 3 }
 		},
 			// TODO localise
 			descriptions[]
 		{
-			{ L"Slight Atari Player (*.SAP)" },
-			{ L"Chaos Music Composer (*.CMC;*.CM3;*.CMR;*.CMS;*.DMC)" },
-			{ L"Delta Music Composer (*.DLT)" },
-			{ L"Music ProTracker (*.MPT;*.MPD)" },
-			{ L"Raster Music Tracker (*.RMT)" },
-			{ L"Theta Music Composer 1.x (*.TMC;*.TM8)" },
-			{ L"Theta Music Composer 2.x (*.TM2)" },
-			{ L"Future Composer (*.FC)" },
-			{ L"Atari 8-bit Disk Image (*.ATR)" },
+			{ L"Slight Atari Player (*.SAP)", 27 },
+			{ L"Chaos Music Composer (*.CMC;*.CM3;*.CMR;*.CMS;*.DMC)", 52 },
+			{ L"Delta Music Composer (*.DLT)", 28 },
+			{ L"Music ProTracker (*.MPT;*.MPD)", 30 },
+			{ L"Raster Music Tracker (*.RMT)", 28 },
+			{ L"Theta Music Composer 1.x (*.TMC;*.TM8)", 38 },
+			{ L"Theta Music Composer 2.x (*.TM2)", 32 },
+			{ L"Future Composer (*.FC)", 22 },
+			{ L"Atari 8-bit Disk Image (*.ATR)", 30 }
 		};
 
 		plugin.FileExtensions = BuildInputFileListArrayString(extensions, descriptions,

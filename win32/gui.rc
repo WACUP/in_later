@@ -48,8 +48,8 @@ LANGUAGE LANG_ENGLISH, SUBLANG_ENGLISH_UK
 //
 
 1 VERSIONINFO
- FILEVERSION 6,0,3,18
- PRODUCTVERSION 6,0,3,18
+ FILEVERSION 6,0,3,19
+ PRODUCTVERSION 6,0,3,19
  FILEFLAGSMASK 0x17L
 #ifdef _DEBUG
  FILEFLAGS 0x1L
@@ -66,12 +66,12 @@ BEGIN
         BEGIN
             VALUE "CompanyName", "WACUP"
             VALUE "FileDescription", "Input Plug-in"
-            VALUE "FileVersion", "6.0.3.18"
+            VALUE "FileVersion", "6.0.3.19"
             VALUE "InternalName", "in_later.dll"
             VALUE "LegalCopyright", "Copyleft 2005-2025 Piotr Fusik. WACUP related modifications by Darren Owen aka DrO (2023-2025)"
             VALUE "OriginalFilename", "in_later.dll"
             VALUE "ProductName", "ASAP (Another Slight Atari Player) Decoder"
-            VALUE "ProductVersion", "6.0.3.18"
+            VALUE "ProductVersion", "6.0.3.19"
         END
     END
     BLOCK "VarFileInfo"
