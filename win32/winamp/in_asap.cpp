@@ -523,9 +523,7 @@ static int play(const in_char *fn)
 		plugin.outMod->SetVolume(-666);
 		seek_needed = -1;
 
-		thread_handle = StartThread(playThread, 0, static_cast<int>(plugin.config->
-									   GetInt(playbackConfigGroupGUID, L"priority",
-											  THREAD_PRIORITY_HIGHEST)), 0, NULL);
+		thread_handle = StartPlaybackThread(playThread, 0, 0, NULL);
 		thread_run = (thread_handle != NULL);
 		//setPlayingSong(filename, song);
 		return !thread_run;
