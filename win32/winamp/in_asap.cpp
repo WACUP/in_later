@@ -516,10 +516,12 @@ static int play(const in_char *fn)
 
 		const int bitrate = (channels * sample_rate * BITS_PER_SAMPLE);
 		plugin.SetInfo(bitrate / 1000, sample_rate / 1000, channels, 1);
+#ifndef _WIN64
 		plugin.SAVSAInit(maxlatency, sample_rate);
-		// the order of VSASetInfo's arguments in in2.h is wrong!
-		// http://forums.winamp.com/showthread.php?postid=1841035
 		plugin.VSASetInfo(sample_rate, channels);
+#else
+		plugin.VisInitInfo(maxlatency, sample_rate, channels);
+#endif
 		plugin.outMod->SetVolume(-666);
 		seek_needed = -1;
 
@@ -638,8 +640,14 @@ void GetFileExtensions(void)
 
 const wchar_t wacup_plugin_id[] = { L'w', L'a', L'c', L'u', L'p', L'(', L'i', L'n', L'_', L'l',
 									L'a', L't', L'e', L'r', L'.', L'd', L'l', L'l', L')', 0 };
+
+#define OUR_INPUT_PLUG_IN_FEATURES INPUT_HAS_READ_META | INPUT_USES_UNIFIED_ALT3 | \
+								   INPUT_HAS_FORMAT_CONVERSION_UNICODE | \
+								   INPUT_HAS_FORMAT_CONVERSION_SET_TIME_MODE
+
 In_Module plugin = {
 	IN_VER_WACUP,
+	IN_INIT_PRE_FEATURES
 	/*"ASAP " ASAPInfo_VERSION/*/
 	(char*)wacup_plugin_id/**/,
 	0, 0, // filled by Winamp
@@ -669,9 +677,7 @@ In_Module plugin = {
 	NULL,	// SetInfo
 	NULL,	// filled by Winamp
 	NULL,	// api_service
-	INPUT_HAS_READ_META | INPUT_USES_UNIFIED_ALT3 |
-	INPUT_HAS_FORMAT_CONVERSION_UNICODE |
-	INPUT_HAS_FORMAT_CONVERSION_SET_TIME_MODE,
+	IN_INIT_POST_FEATURES
 	GetFileExtensions,	// loading optimisation
 	IN_INIT_WACUP_END_STRUCT
 };
