@@ -799,9 +799,11 @@ static int get_metadata(const char* filename, const ASAPInfo* info, int song,
 		song = ASAPInfo_GetDefaultSong(info);
 	}
 
-	if (SameStrA(data, "length"))
+	const bool length_seconds = SameStrA(data, "length_seconds");
+	if (length_seconds || SameStrA(data, "length"))
 	{
-		I2WStr(getSongDuration(info, song), dest, destlen);
+		const int length = getSongDuration(info, song);
+		I2WStr((!length_seconds ? length : (length / 1000)), dest, destlen);
 		return 1;
 	}
 	else if (SameStrA(data, "artist"))
