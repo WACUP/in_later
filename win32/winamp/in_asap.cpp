@@ -1,7 +1,7 @@
 /*
  * in_asap.c - ASAP plugin for Winamp
  *
- * Copyright (C) 2005-2023  Piotr Fusik
+ * Copyright (C) 2005-2025  Piotr Fusik
  *
  * This file is part of ASAP (Another Slight Atari Player),
  * see http://asap.sourceforge.net
@@ -91,7 +91,7 @@ LPCTSTR atrFilenameHash(LPCTSTR filename);
 #if 0
 static void writeIniInt(const wchar_t *name, int value, const wchar_t *ini_file)
 {
-	wchar_t str[16] = { 0 };
+	wchar_t str[16];
 	WritePrivateProfileString(INI_SECTION, name, I2WStr(value, str, ARRAYSIZE(str)), ini_file);
 }
 
@@ -152,7 +152,7 @@ static int extractSongNumber(const wchar_t *s, wchar_t *filename)
 {
 	// for compatibility this will handle "<file>#index" but the
 	// preferred handling under a WACUP instance is "<file>,index"
-	int i = (int)_tcslen(s);
+	int i = (int)wcslen(s);
 	int song = -1;
 	if (i > 6 && s[i - 1] >= L'0' && s[i - 1] <= L'9') {
 		if (s[i - 2] == L',' || s[i - 2] == L'#') {
@@ -406,8 +406,9 @@ static int isOurFile(IN_ISOURFILE_PARAM)
 #endif
 		if (ext)
 		{
-			const AutoChar ext8(ext);
-			return ASAPInfo_IsOurExt(ext8);
+			char ext8[8];
+			return ASAPInfo_IsOurExt(ConvertUnicode(ext, -1, CP_ACP,
+								   0, ext8, ARRAYSIZE(ext8), NULL));
 		}
 	}
 	return 0;
@@ -701,10 +702,11 @@ extern "C" __declspec(dllexport) int winampUninstallPlugin(HINSTANCE hDllInst, H
 }
 
 // TODO localise
-extern "C" const wchar_t* pExtList[15] = { L"SAP", L"CMC", L"CM3", L"CMR", L"CMS",
-										   L"DMC", L"DLT", L"MPT", L"MPD", L"RMT",
-										   L"TMC", L"TM8", L"TM2", L"FC", L"ATR" };
-extern "C" const wchar_t* pExtDescList[15] =
+extern "C" const wchar_t* pExtList[16] = { L"SAP", L"CMC", L"CM3", L"CMR",
+										   L"CMS", L"DMC", L"DLT", L"MPT",
+										   L"MPD", L"MD1", L"MD2", L"RMT",
+										   L"TMC", L"TM2", L"FC", L"ATR" };
+extern "C" const wchar_t* pExtDescList[ARRAYSIZE(pExtList)] =
 {
 	L"Slight Atari Player File",
 	L"Chaos Music Composer File",
@@ -715,20 +717,21 @@ extern "C" const wchar_t* pExtDescList[15] =
 	L"Delta Music Composer File",
 	L"Music ProTracker File",
 	L"Music ProTracker File",
+	L"Music ProTracker File",
+	L"Music ProTracker File",
 	L"Raster Music Tracker File",
-	L"Theta Music Composer 1.x File",
 	L"Theta Music Composer 1.x File",
 	L"Theta Music Composer 2.x File",
 	L"Future Composer File",
 	L"Atari 8-bit Disk Image",
 };
 
-BOOL GetExtensionName(LPCWSTR pszExt, LPWSTR pszDest, INT cchDest)
+const int GetExtensionName(LPCWSTR pszExt, LPWSTR pszDest, const int cchDest)
 {
 	int index = sizeof(pExtList) / sizeof(wchar_t*) - 1;
 	for (; (index >= 0) && (CSTR_EQUAL != CompareStringEx(LOCALE_NAME_INVARIANT, NORM_IGNORECASE, pszExt,
 													  -1, pExtList[index], -1, NULL, NULL, 0)); index--);
-	return ((index >= 0) && CopyCchStr(pszDest, cchDest, pExtDescList[index]));
+	return ((index >= 0) ? (const int)CopyCchStrEx(pszDest, cchDest, pExtDescList[index]) : 0);
 }
 
 // return 1 if you want winamp to show it's own file info dialogue, 0 if you want to show your own (via In_Module.InfoBox)
@@ -802,17 +805,19 @@ static int get_metadata(const char* filename, const ASAPInfo* info, int song,
 	const bool length_seconds = SameStrA(data, "length_seconds");
 	if (length_seconds || SameStrA(data, "length"))
 	{
+		int ret = 0;
 		const int length = getSongDuration(info, song);
-		I2WStr((!length_seconds ? length : (length / 1000)), dest, destlen);
-		return 1;
+		I2WStrLen((!length_seconds ? length : (length / 1000)), dest, destlen, &ret);
+		return ret;
 	}
 	else if (SameStrA(data, "artist"))
 	{
 		const char* author = ASAPInfo_GetAuthor(info);
 		if (author && *author)
 		{
-			ConvertANSI(author, -1, CP_ACP, dest, destlen, NULL);
-			return 1;
+			size_t copied = 0;
+			ConvertANSI(author, -1, CP_ACP, dest, destlen, &copied);
+			return (int)copied;
 		}
 	}
 	else if (SameStrA(data, "title"))
@@ -820,8 +825,9 @@ static int get_metadata(const char* filename, const ASAPInfo* info, int song,
 		const char* title = ASAPInfo_GetTitle(info);
 		if (title && *title)
 		{
-			ConvertANSI(title, -1, CP_ACP, dest, destlen, NULL);
-			return 1;
+			size_t copied = 0;
+			ConvertANSI(title, -1, CP_ACP, dest, destlen, &copied);
+			return (int)copied;
 		}
 	}
 	else if (SameStrA(data, "year"))
@@ -837,8 +843,10 @@ static int get_metadata(const char* filename, const ASAPInfo* info, int song,
 			{
 				*space = 0;
 			}
-			ConvertANSI((slash ? (slash + 1) : date), -1, CP_ACP, dest, destlen, NULL);
-			return 1;
+
+			size_t copied = 0;
+			ConvertANSI((slash ? (slash + 1) : date), -1, CP_ACP, dest, destlen, &copied);
+			return (int)copied;
 		}
 	}
 	else if (SameStrA(data, "formatinformation"))
@@ -850,7 +858,7 @@ static int get_metadata(const char* filename, const ASAPInfo* info, int song,
 			p += swprintf(p, L"Length: %.2f seconds\r\n", length / 1000.f);
 		}
 
-		const char* ext = ASAPInfo_GetOriginalModuleExt(info, the_module, the_module_len);
+		const char* ext = ASAPInfo_GetOriginalModuleExt(info);
 		if (ext != NULL)
 		{
 			p += swprintf(p, L"Composed in %hs\r\n", ASAPInfo_GetExtDescription(ext));
@@ -908,12 +916,11 @@ static int get_metadata(const char* filename, const ASAPInfo* info, int song,
 				i += 5 + end - start;
 			}
 		}
-		return 1;
+		return (int)(p - dest);	// TODO this is correct?
 	}
 	else if (SameStrA(data, "genre"))
 	{
-		CopyCchStr(dest, destlen, L"Video Game Music");
-		return 1;
+		return (int)CopyCchStrEx(dest, destlen, L"Video Game Music");
 	}
 	else if (SameStrA(data, "comment"))
 	{
@@ -976,9 +983,10 @@ static int get_metadata(const char* filename, const ASAPInfo* info, int song,
 					p = appendStil(p, "Comment: ", ASTILCover_GetComment(cover));
 				}
 
-				ConvertANSI(buf, -1, (ASTIL_IsUTF8(astil) ? CP_UTF8 : CP_ACP), dest, destlen, NULL);
-
+				size_t copied = 0;
+				ConvertANSI(buf, -1, (ASTIL_IsUTF8(astil) ? CP_UTF8 : CP_ACP), dest, destlen, &copied);
 				SafeFree(buf);
+				return (int)copied;
 			}
 			return 1;
 		}
@@ -988,8 +996,9 @@ static int get_metadata(const char* filename, const ASAPInfo* info, int song,
 		const int br = (ASAPInfo_GetChannels(info) * sample_rate * BITS_PER_SAMPLE);
 		if (br > 0)
 		{
-			I2WStr((br / 1000), dest, destlen);
-			return 1;
+			int ret = 0;
+			I2WStrLen((br / 1000), dest, destlen, &ret);
+			return ret;
 		}
 	}
 	else if (SameStrA(data, "samplerate"))
@@ -997,8 +1006,9 @@ static int get_metadata(const char* filename, const ASAPInfo* info, int song,
 		// TODO possible need to consider
 		//		looking at this for info.
 		//ASAP_GetSampleRate(asap)
-		I2WStr(sample_rate, dest, destlen);
-		return 1;
+		int ret = 0;
+		I2WStrLen(sample_rate, dest, destlen, &ret);
+		return ret;
 	}
 	else if (SameStrA(data, "bitdepth"))
 	{
@@ -1007,7 +1017,7 @@ static int get_metadata(const char* filename, const ASAPInfo* info, int song,
 		dest[0] = L'1';
 		dest[1] = L'6';
 		dest[2] = 0;
-		return 1;
+		return 2;
 	}
 	return 0;
 }
@@ -1052,22 +1062,26 @@ extern "C" __declspec(dllexport) int winampGetExtendedFileInfoW(const wchar_t *f
 	// from that copy to save loading a new instance
 	EnterCriticalSection(&g_info_cs);
 
-	const AutoCharFn playing_file(fn);
-	const bool playing = SameStrA(playing_file, playing_filename_with_song);
-	if (playing && (playing_module_len > 0))
+	const bool reset = SameStrA(data, "reset");
+	if (!reset)
 	{
-		const int ret = get_metadata(playing_file, ASAP_GetInfo(asap),
-									 title_song, playing_module, playing_module_len,
-									 data, dest, destlen);
-		LeaveCriticalSection(&g_info_cs);
-		return ret;
+		const AutoCharFn playing_file(fn);
+		const bool playing = SameStrA(playing_file, playing_filename_with_song);
+		if (playing && (playing_module_len > 0))
+		{
+			const int ret = get_metadata(playing_file, ASAP_GetInfo(asap),
+										 title_song, playing_module, playing_module_len,
+										 data, dest, destlen);
+			LeaveCriticalSection(&g_info_cs);
+			return ret;
+		}
 	}
 
 	static BYTE* title_module;
 	static int title_module_len;
 	static ASAPInfo* title_info;
-	const AutoCharFn file(filename);
-	bool reset = SameStrA(data, "reset"), clean_up = false;
+	char* file = (!reset ? AutoCharFnDup(filename) : NULL);
+	bool clean_up = false;
 	if (reset || !last_info_filename || !SameStrA(file, last_info_filename))
 	{
 		if (last_info_filename != NULL)
@@ -1078,7 +1092,7 @@ extern "C" __declspec(dllexport) int winampGetExtendedFileInfoW(const wchar_t *f
 
 		if (!reset)
 		{
-			last_info_filename = SafeAnsiDup(file);
+			last_info_filename = file;
 
 			if (title_module == NULL)
 			{

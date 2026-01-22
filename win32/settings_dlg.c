@@ -1,7 +1,7 @@
 /*
  * settings_dlg.c - settings dialog box
  *
- * Copyright (C) 2007-2023  Piotr Fusik
+ * Copyright (C) 2007-2026  Piotr Fusik
  *
  * This file is part of ASAP (Another Slight Atari Player),
  * see http://asap.sourceforge.net
@@ -48,9 +48,9 @@ void settingsDialogSet(HWND hDlg, int sample_rate, int song_length, int silence_
 {
 	// TODO localise
 	HWND hWnd = GetDlgItem(hDlg, IDC_SAMPLERATE);
-	SendMessage(hWnd, CB_ADDSTRING, 0, (LPARAM) TEXT("44.1 kHz"));
-	SendMessage(hWnd, CB_ADDSTRING, 0, (LPARAM) TEXT("48 kHz"));
-	SendMessage(hWnd, CB_ADDSTRING, 0, (LPARAM) TEXT("96 kHz"));
+	SendMessage(hWnd, CB_ADDSTRING, 0, (LPARAM) TEXT("44.1"));
+	SendMessage(hWnd, CB_ADDSTRING, 0, (LPARAM) TEXT("48"));
+	SendMessage(hWnd, CB_ADDSTRING, 0, (LPARAM) TEXT("96"));
 	SendMessage(hWnd, CB_ADDSTRING, 0, (LPARAM) TEXT("192"));
 	SendMessage(hWnd, CB_SETCURSEL, sample_rate == 48000 ? 1 : sample_rate == 96000 ? 2 : sample_rate == 192000 ? 3 : 0, 0);
 	if (song_length <= 0) {

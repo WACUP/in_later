@@ -11,9 +11,14 @@
 	The ASAP installer detects it and installs a suitable plugin.
 	If you want to install just the foobar2000 plugin and nothing else, there's an alternative download:
 	<download prefix="foo_asap-" suffix=".fb2k-component" />.</p>
-	<p>foobar2000 can play directly from ZIP files, so you don't even need to unpack them. The plugin also supports ATR disk images.
-	You can also convert, e.g. to MP3.</p>
-	<p>To view and edit metadata, select "View/ASAP info". This doesn't work inside ZIP archives.</p>
+	<p>foobar2000 can play directly from ZIP files, so you don't even need to unpack them.
+	The plugin also supports ATR disk images. You can also convert, e.g. to MP3.</p>
+	<p>Some files contain <a href="formats.html#subsongs">subsongs</a>
+	and they appear as separate playlist entries, with same author and title, just different durations.
+	To add a subsong column, right-click the column header and select "Columns / More...",
+	then "Add new" in "Custom columns". Type "Subsong" as the name and "%subsong%" as the pattern.
+	Then right-click the column header and select "Columns / Subsong".</p>
+	<p>To view and edit metadata, select "View / ASAP info". This doesn't work inside ZIP archives.</p>
 	<img src="foobar2000.png" alt="foobar2000" />
 
 	<h2>XMPlay</h2>

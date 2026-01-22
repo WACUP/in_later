@@ -5,7 +5,7 @@ GREP = @grep -H
 
 # no user-configurable paths below this line
 
-VERSION = 6.0.3
+VERSION = 7.0.0
 
 ifndef DO
 $(error Use "Makefile" instead of "release.mk")
@@ -15,6 +15,7 @@ dist: \
 	release/asap-$(VERSION)-android.apk \
 	release/asap-$(VERSION)-web.zip \
 	release/asap-$(VERSION)-win32.zip \
+	release/asap-$(VERSION)-win64.zip \
 	release/signed-msi \
 	release/foo_asap-$(VERSION).fb2k-component \
 	srcdist
@@ -40,16 +41,20 @@ release/asap-$(VERSION)-win32.zip: release/COPYING.txt \
 	$(addprefix win32/,asapconv.exe asapscan.exe wasap.exe in_asap.dll foo_asap.dll apokeysnd.dll xmp-asap.dll bass_asap.dll ASAPShellEx.dll libasap_plugin.dll signed)
 	$(MAKEZIP)
 
+release/asap-$(VERSION)-win64.zip: release/COPYING.txt \
+	$(addprefix win32/x64/,asapconv.exe asapscan.exe wasap.exe foo_asap.dll bass_asap.dll ASAPShellEx.dll libasap_plugin.dll) win32/signed
+	$(MAKEZIP)
+
 release/foo_asap-$(VERSION).fb2k-component: win32/foo_asap.dll win32/x64/foo_asap.dll win32/signed
 	$(DO)$(RM) $@ && $(SEVENZIP) -tzip $@ -imr!./win32/foo_asap.dll
 
 release/asap-$(VERSION)-macos.dmg: release/osx/libasap_plugin.dylib release/osx/plugins release/osx/asapconv release/osx/bin
-ifdef PORK_CODESIGNING_IDENTITY
-	codesign --options runtime -f -s $(PORK_CODESIGNING_IDENTITY) release/osx/libasap_plugin.dylib
-	codesign --options runtime -f -s $(PORK_CODESIGNING_IDENTITY) release/osx/asapconv
+ifdef FOX_CODESIGNING_IDENTITY
+	codesign --options runtime -f -s $(FOX_CODESIGNING_IDENTITY) release/osx/libasap_plugin.dylib
+	codesign --options runtime -f -s $(FOX_CODESIGNING_IDENTITY) release/osx/asapconv
 endif
 	$(DO)hdiutil create -volname asap-$(VERSION)-macos -srcfolder release/osx -format UDBZ -fs HFS+ -imagekey bzip2-level=3 -ov $@
-	/Applications/Xcode.app/Contents/Developer/usr/bin/notarytool submit --wait --keychain-profile recoilnotarization $@
+	/Applications/Xcode.app/Contents/Developer/usr/bin/notarytool submit --wait --keychain-profile foxnotary $@
 
 release/osx/libasap_plugin.dylib: libasap_plugin.dylib
 	$(DO)strip -o $@ -x $< && chmod 644 $@
@@ -58,7 +63,7 @@ CLEANDIR += release/osx
 release/osx/plugins:
 	$(DO)ln -s /Applications/VLC.app/Contents/MacOS/plugins $@
 
-release/osx/asapconv: $(call src,asapconv.c asap.[ch])
+release/osx/asapconv: $(call src,asapconv.c asap-stdio.[ch] asap.[ch])
 	$(OSX_CC)
 
 release/osx/bin:
@@ -87,9 +92,9 @@ rpm64:
 .PHONY: rpm64
 
 mac:
-	scp release/asap-$(VERSION).tar.gz mac:.
-	ssh mac 'security unlock-keychain ~/Library/Keychains/login.keychain && rm -rf asap-$(VERSION) && tar xf asap-$(VERSION).tar.gz && make -C asap-$(VERSION) release/asap-$(VERSION)-macos.dmg'
-	scp mac:asap-$(VERSION)/release/asap-$(VERSION)-macos.dmg release/
+	scp release/asap-$(VERSION).tar.gz wiesmac:.
+	ssh wiesmac 'security unlock-keychain login.keychain && rm -rf asap-$(VERSION) && tar xf asap-$(VERSION).tar.gz && make -C asap-$(VERSION) release/asap-$(VERSION)-macos.dmg'
+	scp wiesmac:asap-$(VERSION)/release/asap-$(VERSION)-macos.dmg release/
 .PHONY: mac
 
 release/COPYING.txt: $(srcdir)COPYING

@@ -20,7 +20,7 @@ SEVENZIP = 'C:/Program Files/7-Zip/7z' a -mx=9 -bd -bso0
 MAKEZIP = $(DO)$(RM) $@ && $(SEVENZIP) -tzip $@ $(patsubst %,./%,$(filter-out win32/signed,$^)) # "./" makes 7z don't store paths in the archive
 COPY = $(DO)cp $< $@
 XASM = $(DO)xasm -q -o $@ $<
-OSX_CC = $(DO)cc -O2 -Wall -o $@ -undefined dynamic_lookup -mmacosx-version-min=10.6 -arch x86_64 -arch arm64 $(INCLUDEOPTS) $(filter %.c,$^)
+OSX_CC = $(DO)cc -O2 -Wall -o $@ -mmacosx-version-min=10.6 -arch x86_64 -arch arm64 $(INCLUDEOPTS) $(filter %.c,$^)
 
 # no user-configurable paths below this line
 
@@ -48,7 +48,7 @@ include $(srcdir)test/test.mk
 
 # asapconv
 
-asapconv: $(call src,asapconv.c asap.[ch])
+asapconv: $(call src,asapconv.c asap-stdio.[ch] asap.[ch])
 	$(DO_CC)
 CLEAN += asapconv
 
@@ -98,7 +98,7 @@ uninstall-sdl:
 
 # asapscan
 
-asapscan: $(srcdir)asapscan.c asap-asapscan.h
+asapscan: $(call src,asapscan.c asap-stdio.[ch] asap-asapscan.h)
 	$(DO_CC)
 CLEAN += asapscan asapscan.exe
 

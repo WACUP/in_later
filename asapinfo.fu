@@ -1,6 +1,6 @@
 // asapinfo.fu - module parser
 //
-// Copyright (C) 2010-2025  Piotr Fusik
+// Copyright (C) 2010-2026  Piotr Fusik
 //
 // This file is part of ASAP (Another Slight Atari Player),
 // see http://asap.sourceforge.net
@@ -31,10 +31,13 @@ enum ASAPModuleType
 	Cms,
 	Dlt,
 	Mpt,
+	Md1,
+	Md2,
 	Rmt,
 	Tmc,
 	Tm2,
-	Fc
+	Fc,
+	D15
 #if EXPERIMENTAL_XEX
 	// actually it works, but without VBLKI it's practically useless
 	, Xex
@@ -55,7 +58,7 @@ class DurationParser
 {
 	string? Source;
 	int Position;
-	int Length;
+	nint Length;
 
 	0 .. 9 ParseDigit!(int max)
 		throws ASAPFormatException
@@ -113,16 +116,16 @@ class DurationParser
 public class ASAPInfo
 {
 	/// ASAP version - major part.
-	public const int VersionMajor = 6;
+	public const int VersionMajor = 7;
 	/// ASAP version - minor part.
 	public const int VersionMinor = 0;
 	/// ASAP version - micro part.
-	public const int VersionMicro = 3;
+	public const int VersionMicro = 0;
 	/// ASAP version as a string.
 	public const string Version = $"{VersionMajor}.{VersionMinor}.{VersionMicro}";
 
 	/// Years ASAP was created in.
-	public const string Years = "2005-2025";
+	public const string Years = "2005-2026";
 
 	/// Short credits for ASAP.
 	public const string Credits =
@@ -164,6 +167,7 @@ public class ASAPInfo
 	bool[MaxSongs] Loops;
 	bool Ntsc;
 	internal ASAPModuleType Type;
+	internal ASAPModuleType OriginalType;
 	int Fastplay;
 	int Music;
 	int Init;
@@ -308,7 +312,7 @@ public class ASAPInfo
 	{
 		if (moduleLen < 0x306)
 			throw ASAPFormatException("Module too short");
-		Type = type;
+		OriginalType = Type = type;
 		ParseModule(module, moduleLen);
 		int lastPos = 0x54;
 		while (--lastPos >= 0) {
@@ -389,7 +393,7 @@ public class ASAPInfo
 	{
 		if (moduleLen != 0x2c06 && moduleLen != 0x2c07)
 			throw ASAPFormatException("Invalid module length");
-		Type = ASAPModuleType.Dlt;
+		OriginalType = Type = ASAPModuleType.Dlt;
 		ParseModule(module, moduleLen);
 		if (Music != 0x2000)
 			throw ASAPFormatException("Unsupported module address");
@@ -475,12 +479,12 @@ public class ASAPInfo
 			AddSong(playerCalls);
 	}
 
-	void ParseMpt!(byte[] module, int moduleLen)
+	void ParseMpt!(byte[] module, int moduleLen, ASAPModuleType type)
 		throws ASAPFormatException
 	{
 		if (moduleLen < 0x1d0)
 			throw ASAPFormatException("Module too short");
-		Type = ASAPModuleType.Mpt;
+		OriginalType = Type = type;
 		ParseModule(module, moduleLen);
 		int track0Addr = GetWord(module, 2) + 0x1ca;
 		if (module[0x1c6] + (module[0x1ca] << 8) != track0Addr)
@@ -697,7 +701,7 @@ public class ASAPInfo
 		int perFrame = module[0xc];
 		if (perFrame < 1 || perFrame > 4)
 			throw ASAPFormatException("Unsupported player call rate");
-		Type = ASAPModuleType.Rmt;
+		OriginalType = Type = ASAPModuleType.Rmt;
 		ParseModule(module, moduleLen);
 		int blockLen = GetWord(module, 4) + 1 - Music;
 		int songLen = GetWord(module, 4) + 1 - GetWord(module, 0x14);
@@ -840,7 +844,7 @@ public class ASAPInfo
 	{
 		if (moduleLen < 0x1d0)
 			throw ASAPFormatException("Module too short");
-		Type = ASAPModuleType.Tmc;
+		OriginalType = Type = ASAPModuleType.Tmc;
 		ParseModule(module, moduleLen);
 		Channels = 2;
 		int i = 0;
@@ -952,7 +956,7 @@ public class ASAPInfo
 	{
 		if (moduleLen < 0x3a4)
 			throw ASAPFormatException("Module too short");
-		Type = ASAPModuleType.Tm2;
+		OriginalType = Type = ASAPModuleType.Tm2;
 		ParseModule(module, moduleLen);
 		int i = module[0x25];
 		if (i < 1 || i > 4)
@@ -1046,7 +1050,7 @@ public class ASAPInfo
 	{
 		if (!ValidateFc(module, moduleLen))
 			throw ASAPFormatException("Invalid FC file");
-		Type = ASAPModuleType.Fc;
+		OriginalType = Type = ASAPModuleType.Fc;
 
 		Player = 0x400;
 		Music = 0xa00;
@@ -1128,6 +1132,45 @@ public class ASAPInfo
 		}
 	}
 
+	// Pause samples every frame, emulating MPT player routine.
+	// This is just some approximation.
+	// Scanline rate in PAL is 15556 Hz.
+	// Pausing for 11 scanlines of every 312 scanlines makes
+	// the average sample rate of 15007 Hz, almost a round number.
+	internal const int MptSamplesVblkPauseScanlines = 11;
+
+	void ParseMptSamples!(byte[] content, int contentLen)
+		throws ASAPFormatException
+	{
+		if (contentLen < 32 + 256)
+			throw ASAPFormatException("File too short");
+		OriginalType = Type = ASAPModuleType.D15;
+		Songs = 0;
+		HeaderLen = -1;
+		// TODO: join with similar code in ASAPMptSamples?
+		int end = -1;
+		for (int i = 0; i < 16; i++) {
+			int start = content[i];
+			if (start == 0) {
+				for (; i < 16; i++) {
+					if (content[i] != 0 || content[16 + i] != 0)
+						throw ASAPFormatException("Invalid header");
+				}
+				break;
+			}
+			if (i > 0 && start != end)
+				throw ASAPFormatException("Invalid header");
+			end = content[16 + i];
+			if (end <= start)
+				throw ASAPFormatException("Invalid header");
+			int samples = end - start << 9;
+			AddSong(samples + samples / (312 - MptSamplesVblkPauseScanlines) * MptSamplesVblkPauseScanlines);
+		}
+		if (contentLen < (end - content[0] << 8) + 0x20)
+			throw ASAPFormatException("File too short");
+		Music = (content[0] << 8) - 0x20;
+	}
+
 #if !OPENCL
 	static string() ParseText(byte[] module, int i, int argEnd)
 	{
@@ -1202,6 +1245,18 @@ public class ASAPInfo
 
 	static bool ValidateSap(byte[] module, int moduleLen)
 		=> moduleLen >= 30 && HasStringAt(module, 0, "SAP\r\n");
+
+	internal const int RmtInit = 0xc80;
+
+	internal int GetRmtSapOffset(byte[] module, int moduleLen)
+	{
+		if (Player != 0x3403)
+			return -1;
+		int offset = HeaderLen + GetWord(module, HeaderLen + 4) - GetWord(module, HeaderLen + 2) + 7;
+		if (offset + 6 >= moduleLen || module[offset + 4] != 'R' || module[offset + 5] != 'M' || module[offset + 6] != 'T')
+			return -1;
+		return offset;
+	}
 
 	void ParseSap!(byte[] module, int moduleLen)
 		throws ASAPFormatException
@@ -1314,30 +1369,61 @@ public class ASAPInfo
 
 		if (DefaultSong >= Songs)
 			throw ASAPFormatException("DEFSONG too big");
+		HeaderLen = moduleIndex;
 		switch (type) {
 		case 'B':
 			if (Player < 0)
 				throw ASAPFormatException("Missing PLAYER tag");
 			if (Init < 0)
 				throw ASAPFormatException("Missing INIT tag");
-			Type = ASAPModuleType.SapB;
+			OriginalType = Type = ASAPModuleType.SapB;
+			if ((Init == 0x3fb || Init == 0x3f9) && Player == 0x503)
+				OriginalType = ASAPModuleType.Dlt;
+			else if (((Init == 0x4f3 || Init == 0x4ef) && Player == 0x503) || (Init == 0xf4f3 && Player == 0xf503))
+				OriginalType = ASAPModuleType.Mpt;
+			else if (Init == RmtInit || GetRmtSapOffset(module, moduleLen) > 0)
+				OriginalType = ASAPModuleType.Rmt;
+			else if ((Init == 0x4f5 || Init == 0xf4f5 || Init == 0x4f2)
+			 || ((Init == 0x4e7 || Init == 0xf4e7 || Init == 0x4e4) && Fastplay == 156)
+			 || ((Init == 0x4e5 || Init == 0xf4e5 || Init == 0x4e2) && (Fastplay == 104 || Fastplay == 78)))
+				OriginalType = ASAPModuleType.Tmc;
+			else if ((Init == 0x1080 && Player == 0x503) || (Init == 0x1380 && Player == 0x803))
+				OriginalType = ASAPModuleType.Tm2;
+			else if (Init == 0x400 && Player == 0x403)
+				OriginalType = ASAPModuleType.Fc;
 			break;
 		case 'C':
 			if (Player < 0)
 				throw ASAPFormatException("Missing PLAYER tag");
 			if (Music < 0)
 				throw ASAPFormatException("Missing MUSIC tag");
-			Type = ASAPModuleType.SapC;
+			OriginalType = Type = ASAPModuleType.SapC;
+			if ((Player == 0x500 || Player == 0xf500) && moduleLen >= 1024) {
+				if (Channels > 1)
+					OriginalType = ASAPModuleType.Cms;
+				else if (module[moduleLen - 170] == 0x1e)
+					OriginalType = ASAPModuleType.Cmr;
+				else if (module[moduleLen - 909] == 0x30)
+					OriginalType = ASAPModuleType.Cm3;
+				else
+					OriginalType = ASAPModuleType.Cmc;
+			}
 			break;
 		case 'D':
 			if (Init < 0)
 				throw ASAPFormatException("Missing INIT tag");
-			Type = ASAPModuleType.SapD;
+			OriginalType = Type = ASAPModuleType.SapD;
+			if (Player == 0x503 || Player == 0xf503) {
+				if (Init == Player - (0x503 - 0x4e3) && moduleLen > 2231 && module[moduleLen - 2231] == 0xa2)
+					OriginalType = ASAPModuleType.Md1;
+				else if (Init == Player - (0x503 - 0x4e5))
+					OriginalType = ASAPModuleType.Md2;
+			}
 			break;
 		case 'S':
 			if (Init < 0)
 				throw ASAPFormatException("Missing INIT tag");
-			Type = ASAPModuleType.SapS;
+			OriginalType = Type = ASAPModuleType.SapS;
 			if (Fastplay < 0)
 				Fastplay = 78;
 			break;
@@ -1348,7 +1434,6 @@ public class ASAPInfo
 			Fastplay = Ntsc ? 262 : 312;
 		if (module[moduleIndex + 1] != 0xff)
 			throw ASAPFormatException("Invalid binary header");
-		HeaderLen = moduleIndex;
 	}
 
 	internal static int PackExt(string ext)
@@ -1383,11 +1468,15 @@ public class ASAPInfo
 		case PackExt("DLT"):
 		case PackExt("MPT"):
 		case PackExt("MPD"):
+		case PackExt("MD1"):
+		case PackExt("MD2"):
 		case PackExt("RMT"):
 		case PackExt("TMC"):
 		case PackExt("TM8"):
 		case PackExt("TM2"):
 		case PackExt("FC"):
+		case PackExt("D15"):
+		case PackExt("D8"):
 #if EXPERIMENTAL_XEX
 		case PackExt("XEX"):
 #endif
@@ -1507,12 +1596,20 @@ public class ASAPInfo
 			ParseDlt(module, moduleLen);
 			return;
 		case PackExt("MPT"):
-			ParseMpt(module, moduleLen);
+			ParseMpt(module, moduleLen, ASAPModuleType.Mpt);
 			return;
 		case PackExt("MPD"):
 			Fastplay = 156;
-			ParseMpt(module, moduleLen);
+			ParseMpt(module, moduleLen, ASAPModuleType.Mpt);
 			return;
+#if !OPENCL
+		case PackExt("MD1"):
+			ParseMpt(module, moduleLen, ASAPModuleType.Md1);
+			return;
+		case PackExt("MD2"):
+			ParseMpt(module, moduleLen, ASAPModuleType.Md2);
+			return;
+#endif
 		case PackExt("RMT"):
 			ParseRmt(module, moduleLen);
 			return;
@@ -1526,11 +1623,19 @@ public class ASAPInfo
 		case PackExt("FC"):
 			ParseFc(module, moduleLen);
 			return;
+		case PackExt("D15"):
+			Fastplay = 1;
+			ParseMptSamples(module, moduleLen);
+			return;
+		case PackExt("D8"):
+			Fastplay = 2;
+			ParseMptSamples(module, moduleLen);
+			return;
 #if EXPERIMENTAL_XEX
 		case PackExt("XEX"):
 			if (moduleLen < 7 || module[0] != 0xff || module[1] != 0xff)
 				throw ASAPFormatException("Missing 0xff,0xff header");
-			Type = ASAPModuleType.Xex;
+			OriginalType = Type = ASAPModuleType.Xex;
 			return;
 #endif
 #endif
@@ -1851,76 +1956,27 @@ public class ASAPInfo
 		case PackExt("DMC"): return "CMC DoublePlay";
 		case PackExt("DLT"): return "Delta Music Composer";
 		case PackExt("MPT"): return "Music ProTracker";
+		case PackExt("MD1"): return "Music ProTracker (1-channel samples)";
+		case PackExt("MD2"): return "Music ProTracker (2-channel samples)";
 		case PackExt("MPD"): return "MPT DoublePlay";
 		case PackExt("RMT"): return "Raster Music Tracker";
 		case PackExt("TMC"):
 		case PackExt("TM8"): return "Theta Music Composer 1.x";
 		case PackExt("TM2"): return "Theta Music Composer 2.x";
 		case PackExt("FC"): return "Future Composer";
+		case PackExt("D15"): return "Music ProTracker 15 kHz samples";
+		case PackExt("D8"): return "Music ProTracker 8 kHz samples";
 		case PackExt("XEX"): return "Atari 8-bit executable";
 		default: throw ASAPFormatException("Unknown extension");
-		}
-	}
-
-	internal const int RmtInit = 0xc80;
-
-	internal int GetRmtSapOffset(byte[] module, int moduleLen)
-	{
-		if (Player != 0x3403)
-			return -1;
-		int offset = HeaderLen + GetWord(module, HeaderLen + 4) - GetWord(module, HeaderLen + 2) + 7;
-		if (offset + 6 >= moduleLen || module[offset + 4] != 'R' || module[offset + 5] != 'M' || module[offset + 6] != 'T')
-			return -1;
-		return offset;
-	}
-
-	internal ASAPModuleType GetOriginalModuleType(
-		byte[] module,
-		int moduleLen)
-	{
-		switch (Type) {
-		case ASAPModuleType.SapB:
-			if ((Init == 0x3fb || Init == 0x3f9) && Player == 0x503)
-				return ASAPModuleType.Dlt;
-			if (((Init == 0x4f3 || Init == 0x4ef) && Player == 0x503) || (Init == 0xf4f3 && Player == 0xf503))
-				return ASAPModuleType.Mpt;
-			if (Init == RmtInit || GetRmtSapOffset(module, moduleLen) > 0)
-				return ASAPModuleType.Rmt;
-			if ((Init == 0x4f5 || Init == 0xf4f5 || Init == 0x4f2)
-			 || ((Init == 0x4e7 || Init == 0xf4e7 || Init == 0x4e4) && Fastplay == 156)
-			 || ((Init == 0x4e5 || Init == 0xf4e5 || Init == 0x4e2) && (Fastplay == 104 || Fastplay == 78)))
-				return ASAPModuleType.Tmc;
-			if ((Init == 0x1080 && Player == 0x503) || (Init == 0x1380 && Player == 0x803))
-				return ASAPModuleType.Tm2;
-			if (Init == 0x400 && Player == 0x403)
-				return ASAPModuleType.Fc;
-			return Type;
-		case ASAPModuleType.SapC:
-			if ((Player == 0x500 || Player == 0xf500) && moduleLen >= 1024) {
-				if (Channels > 1)
-					return ASAPModuleType.Cms;
-				if (module[moduleLen - 170] == 0x1e)
-					return ASAPModuleType.Cmr;
-				if (module[moduleLen - 909] == 0x30)
-					return ASAPModuleType.Cm3;
-				return ASAPModuleType.Cmc;
-			}
-			return Type;
-		default:
-			return Type;
 		}
 	}
 
 	/// Returns the extension of the original module format.
 	/// For native modules it simply returns their extension.
 	/// For the SAP format it attempts to detect the original module format.
-	public string? GetOriginalModuleExt(
-		/// Contents of the file.
-		byte[] module,
-		/// Length of the file.
-		int moduleLen)
+	public string? GetOriginalModuleExt()
 	{
-		switch (GetOriginalModuleType(module, moduleLen)) {
+		switch (OriginalType) {
 		case ASAPModuleType.Cmc:
 			return Fastplay == 156 ? "dmc" : "cmc";
 		case ASAPModuleType.Cm3:
@@ -1933,6 +1989,10 @@ public class ASAPInfo
 			return "dlt";
 		case ASAPModuleType.Mpt:
 			return Fastplay == 156 ? "mpd" : "mpt";
+		case ASAPModuleType.Md1:
+			return "md1";
+		case ASAPModuleType.Md2:
+			return "md2";
 		case ASAPModuleType.Rmt:
 			return "rmt";
 		case ASAPModuleType.Tmc:
@@ -1941,6 +2001,8 @@ public class ASAPInfo
 			return "tm2";
 		case ASAPModuleType.Fc:
 			return "fc";
+		case ASAPModuleType.D15:
+			return Fastplay == 1 ? "d15" : "d8";
 		default:
 			return null;
 		}

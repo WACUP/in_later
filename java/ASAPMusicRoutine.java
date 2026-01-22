@@ -1,7 +1,7 @@
 /*
  * ASAPMusicRoutine.java - music embeddable in an Atari program
  *
- * Copyright (C) 2011-2023  Piotr Fusik
+ * Copyright (C) 2011-2025  Piotr Fusik
  *
  * This file is part of ASAP (Another Slight Atari Player),
  * see http://asap.sourceforge.net
@@ -33,11 +33,8 @@ package net.sf.asap;
  */
 public class ASAPMusicRoutine
 {
-	private final byte[] binary = new byte[ASAPInfo.MAX_MODULE_LENGTH];
-	private final int binaryLen;
-	private final int initAddress;
+	private final ASAPWriter writer = new ASAPWriter();
 	private final boolean fulltime;
-	private final int playerAddress;
 	private final int playerRate;
 
 	/**
@@ -52,15 +49,9 @@ public class ASAPMusicRoutine
 	{
 		ASAPInfo info = new ASAPInfo();
 		info.load(filename, module, moduleLen);
-		ASAPWriter writer = new ASAPWriter();
-		writer.setOutput(binary, 0, binary.length);
-		int[] initAndPlayer = new int[2];
-		writer.writeExecutable(initAndPlayer, info, module, moduleLen);
-		binaryLen = writer.outputOffset;
-		initAddress = initAndPlayer[0];
+		writer.writeExecutable(false, info, module, moduleLen);
 		// TODO: SAP_S
 		fulltime = info.type == ASAPModuleType.SAP_D;
-		playerAddress = initAndPlayer[1];
 		playerRate = info.getPlayerRateScanlines();
 	}
 
@@ -74,13 +65,13 @@ public class ASAPMusicRoutine
 	 * which normally conflicts with the Atari operating system.
 	 * @see #getBinaryLength()
 	 */
-	public byte[] getBinaryContent() { return binary; }
+	public byte[] getBinaryContent() { return writer.getOutput(); }
 
 	/**
 	 * Returns length of music data.
 	 * @see #getBinaryContent()
 	 */
-	public int getBinaryLength() { return binaryLen; }
+	public int getBinaryLength() { return writer.getOutputLength(); }
 
 	/**
 	 * Returns address of the initialization routine.
@@ -103,7 +94,7 @@ public class ASAPMusicRoutine
 	 *     jsr initMusic ; use the address returned by {@link #getInitAddress()}
 	 * </pre>
 	 */
-	public int getInitAddress() { return initAddress; }
+	public int getInitAddress() { return writer.init; }
 
 	/**
 	 * Returns <code>true</code> if the initialization routine doesn't return
@@ -120,7 +111,7 @@ public class ASAPMusicRoutine
 	 * The player routine should be called at a constant rate
 	 * with a <code>JSR</code>.
 	 */
-	public int getPlayerAddress() { return playerAddress; }
+	public int getPlayerAddress() { return writer.player; }
 
 	/**
 	 * Returns the rate at which the player routine should be called.

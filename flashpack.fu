@@ -255,23 +255,25 @@ class FlashPack
 	internal void Compress!(ASAPWriter! w)
 		throws ASAPConversionException
 	{
-		// Load executable from w.Output up to w.OutputOffset into Memory
+		// Load executable from w.Output into Memory
 		for (int i = 0; i < 65536; i++)
 			Memory[i] = -1;
-		for (int i = 0; i + 5 <= w.OutputOffset; ) {
-			int startAddress = w.Output[i] + (w.Output[i + 1] << 8);
+		byte[] input = w.GetOutput();
+		int inputLen = w.GetOutputLength();
+		for (int i = 0; i + 5 <= inputLen; ) {
+			int startAddress = input[i] + (input[i + 1] << 8);
 			if (startAddress == 0xffff) {
 				i += 2;
-				startAddress = w.Output[i] + (w.Output[i + 1] << 8);
+				startAddress = input[i] + (input[i + 1] << 8);
 			}
-			int endAddress = w.Output[i + 2] + (w.Output[i + 3] << 8);
+			int endAddress = input[i + 2] + (input[i + 3] << 8);
 			if (startAddress > endAddress)
 				throw ASAPConversionException("Start address greater than end address");
 			i += 4;
-			if (i + endAddress - startAddress >= w.OutputOffset)
+			if (i + endAddress - startAddress >= inputLen)
 				throw ASAPConversionException("Truncated block");
 			while (startAddress <= endAddress)
-				Memory[startAddress++] = w.Output[i++];
+				Memory[startAddress++] = input[i++];
 		}
 
 		if (Memory[0x2e0] < 0 || Memory[0x2e1] < 0)
@@ -298,7 +300,7 @@ class FlashPack
 		int compressedStartAddress = depackerStartAddress - CompressedLength;
 		if (compressedStartAddress < MinLoadAddress)
 			throw ASAPConversionException("Too much compressed data");
-		w.OutputOffset = 0;
+		w.ClearOutput();
 		w.WriteWord(0xffff);
 		// turn off the built-in BASIC
 		w.WriteWord(0xd301);

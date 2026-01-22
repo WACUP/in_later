@@ -59,10 +59,15 @@ class PokeyChannel
 		Delta = 0;
 	}
 
-	internal void Slope!(Pokey! pokey, PokeyPair pokeys, int cycle)
+	void AddDelta(Pokey! pokey, PokeyPair pokeys, int cycle, int delta)
+	{
+		pokey.AddDelta(pokeys, cycle, delta, (Mute & MuteUser) != 0);
+	}
+
+	void Slope!(Pokey! pokey, PokeyPair pokeys, int cycle)
 	{
 		Delta = -Delta;
-		pokey.AddDelta(pokeys, cycle, Delta);
+		AddDelta(pokey, pokeys, cycle, Delta);
 	}
 
 	internal void DoTick!(Pokey! pokey, PokeyPair pokeys, int cycle, int ch)
@@ -98,6 +103,12 @@ class PokeyChannel
 		Slope(pokey, pokeys, cycle);
 	}
 
+	internal void SlopeDown!(Pokey! pokey, PokeyPair pokeys, int cycle)
+	{
+		if (Delta > 0 && Mute == 0)
+			Slope(pokey, pokeys, cycle);
+	}
+
 	internal void DoStimer!(Pokey! pokey, PokeyPair pokeys, int cycle, int reload)
 	{
 		if (TickCycle != Pokey.NeverCycle)
@@ -129,15 +140,13 @@ class PokeyChannel
 		Audc = data;
 		if ((data & 0x10) != 0) {
 			data &= 0xf;
-			if ((Mute & MuteUser) == 0)
-				pokey.AddDelta(pokeys, cycle, Delta > 0 ? data - Delta : data);
+			AddDelta(pokey, pokeys, cycle, Delta > 0 ? data - Delta : data);
 			Delta = data;
 		}
 		else {
 			data &= 0xf;
 			if (Delta > 0) {
-				if ((Mute & MuteUser) == 0)
-					pokey.AddDelta(pokeys, cycle, data - Delta);
+				AddDelta(pokey, pokeys, cycle, data - Delta);
 				Delta = data;
 			}
 			else
@@ -247,10 +256,12 @@ class Pokey
 		StartFrame();
 	}
 
-	internal void AddDelta!(PokeyPair pokeys, int cycle, int delta)
+	internal void AddDelta!(PokeyPair pokeys, int cycle, int delta, bool muted)
 	{
-		const int DeltaShiftPOKEY = 16;
 		SumDACInputs += delta;
+		if (muted)
+			return;
+		const int DeltaShiftPOKEY = 16;
 		int newOutput = CompressedSums[SumDACInputs] << DeltaShiftPOKEY;
 		AddExternalDelta(pokeys, cycle, newOutput - SumDACOutputs);
 		SumDACOutputs = newOutput;
@@ -282,15 +293,15 @@ class Pokey
 				break;
 
 			if (cycle == Channels[2].TickCycle) {
-				if ((Audctl & 4) != 0 && Channels[0].Delta > 0 && Channels[0].Mute == 0)
-					Channels[0].Slope(this, pokeys, cycle);
+				if ((Audctl & 4) != 0)
+					Channels[0].SlopeDown(this, pokeys, cycle);
 				Channels[2].DoTick(this, pokeys, cycle, 2);
 			}
 			if (cycle == Channels[3].TickCycle) {
 				if ((Audctl & 8) != 0)
 					Channels[2].TickCycle = cycle + ReloadCycles3;
-				if ((Audctl & 2) != 0 && Channels[1].Delta > 0 && Channels[1].Mute == 0)
-					Channels[1].Slope(this, pokeys, cycle);
+				if ((Audctl & 2) != 0)
+					Channels[1].SlopeDown(this, pokeys, cycle);
 				Channels[3].DoTick(this, pokeys, cycle, 3);
 			}
 			if (cycle == Channels[0].TickCycle) {

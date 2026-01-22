@@ -1,6 +1,6 @@
 // asapwriter.fu - format conversions
 //
-// Copyright (C) 2011-2024  Piotr Fusik
+// Copyright (C) 2011-2026  Piotr Fusik
 //
 // This file is part of ASAP (Another Slight Atari Player),
 // see http://asap.sourceforge.net
@@ -24,6 +24,10 @@ public class ASAPConversionException : Exception
 {
 }
 
+public class ASAPIOException : Exception
+{
+}
+
 class ASAPNativeModuleWriter
 {
 	internal ASAPWriter!? Writer;
@@ -40,7 +44,7 @@ class ASAPNativeModuleWriter
 	void Copy(int endOffset)
 		throws ASAPConversionException
 	{
-		Writer.WriteBytes(SourceModule, SourceOffset + Writer.OutputOffset, SourceOffset + endOffset);
+		Writer.WriteBytes(SourceModule, SourceOffset + Writer.GetOutputLength(), SourceOffset + endOffset);
 	}
 
 	void RelocateBytes(int lowOffset, int highOffset, int count, int shift)
@@ -59,7 +63,7 @@ class ASAPNativeModuleWriter
 	void RelocateLowHigh(int count)
 		throws ASAPConversionException
 	{
-		int lowOffset = Writer.OutputOffset;
+		int lowOffset = Writer.GetOutputLength();
 		RelocateBytes(lowOffset, lowOffset + count, count, 0);
 		RelocateBytes(lowOffset, lowOffset + count, count, 8);
 	}
@@ -68,7 +72,7 @@ class ASAPNativeModuleWriter
 		throws ASAPConversionException
 	{
 		while (--count >= 0) {
-			int address = GetWord(Writer.OutputOffset);
+			int address = GetWord(Writer.GetOutputLength());
 			if (address != 0 && address != 0xffff)
 				address += AddressDiff;
 			Writer.WriteWord(address);
@@ -97,6 +101,8 @@ class ASAPNativeModuleWriter
 			RelocateWords(3); // DOS header
 			break;
 		case ASAPModuleType.Mpt:
+		case ASAPModuleType.Md1:
+		case ASAPModuleType.Md2:
 			// * -> MPT
 			RelocateWords(3 + 32 + 64); // DOS header, instruments, patterns
 			Copy(6 + 64 + 128 + 256); // note lookup tables
@@ -149,7 +155,8 @@ class ASAPNativeModuleWriter
 	}
 }
 
-/// Static methods for writing modules in different formats.
+/// Converter between the SAP format, native module formats
+/// and the Atari 8-bit XEX executables.
 public class ASAPWriter
 {
 	/// Maximum number of extensions returned by `GetSaveExts`.
@@ -166,32 +173,28 @@ public class ASAPWriter
 		/// Must be `MaxSaveExts` long.
 		string[]! exts,
 		/// File information.
-		ASAPInfo info,
-		/// Contents of the file.
-		byte[] module,
-		/// Length of the file.
-		int moduleLen)
+		ASAPInfo info)
 	{
 		int i = 0;
 		switch (info.Type) {
 		case ASAPModuleType.SapB:
 		case ASAPModuleType.SapC:
-			exts[i++] = "sap";
-			string? ext = info.GetOriginalModuleExt(module, moduleLen);
-			if (ext != null)
-				exts[i++] = ext;
-			exts[i++] = "xex";
-			break;
 		case ASAPModuleType.SapD:
 			exts[i++] = "sap";
-			if (info.GetPlayerRateScanlines() == 312)
+			string? ext = info.GetOriginalModuleExt();
+			if (ext != null)
+				exts[i++] = ext;
+			if (info.Type != ASAPModuleType.SapD || info.GetPlayerRateScanlines() == 312)
 				exts[i++] = "xex";
 			break;
 		case ASAPModuleType.SapS:
 			exts[i++] = "sap";
 			break;
+		case ASAPModuleType.D15:
+			exts[i++] = info.GetOriginalModuleExt();
+			break;
 		default:
-			exts[i++] = info.GetOriginalModuleExt(module, moduleLen);
+			exts[i++] = info.GetOriginalModuleExt();
 			exts[i++] = "sap";
 			exts[i++] = "xex";
 			break;
@@ -242,30 +245,41 @@ public class ASAPWriter
 		return 9;
 	}
 
-	internal byte[]! Output;
-	internal int OutputOffset;
-	int OutputEnd;
+	string SourceFilename;
+	ASAPFileLoader? Loader = null;
 
-	/// Sets the destination array for `Write`.
-	public void SetOutput!(
-		/// The destination array.
-		byte[]! output,
-		/// The array offset to start writing at.
-		int startIndex,
-		/// The array offset to finish writing before.
-		int endIndex)
+	/// Sets the loader for extra input files, if they are needed.
+	/// Conversion from MD1/MD2 to SAP/XEX needs an extra D15/D8 file.
+	public void SetInput!(
+		/// Filename of the main input.
+		/// Used to form the filenames of the extra files.
+		string sourceFilename,
+		/// Loader for extra files, if needed.
+		ASAPFileLoader loader)
 	{
-		Output = output;
-		OutputOffset = startIndex;
-		OutputEnd = endIndex;
+		SourceFilename = sourceFilename;
+		Loader = loader;
 	}
+
+	internal int Init;
+	internal int Player;
+
+	int OutputLen;
+	byte[ASAPInfo.MaxModuleLength] Output;
+
+	internal void ClearOutput!()
+	{
+		OutputLen = 0;
+	}
+
+	internal byte[] GetOutput() => Output;
 
 	internal void WriteByte!(int value)
 		throws ASAPConversionException
 	{
-		if (OutputOffset >= OutputEnd)
+		if (OutputLen >= Output.Length)
 			throw ASAPConversionException("Output full");
-		Output[OutputOffset++] = value;
+		Output[OutputLen++] = value;
 	}
 
 	internal void WriteWord!(int value)
@@ -279,10 +293,10 @@ public class ASAPWriter
 		throws ASAPConversionException
 	{
 		int length = endIndex - startIndex;
-		if (OutputOffset + length > OutputEnd)
+		if (OutputLen + length > Output.Length)
 			throw ASAPConversionException("Output full");
-		array.CopyTo(startIndex, Output, OutputOffset, length);
-		OutputOffset += length;
+		array.CopyTo(startIndex, Output, OutputLen, length);
+		OutputLen += length;
 	}
 
 	void WriteString!(string s)
@@ -338,7 +352,7 @@ public class ASAPWriter
 		WriteByte('\n');
 	}
 
-	void WriteSapHeader!(ASAPInfo info, int type, int init, int player)
+	void WriteSapHeader!(ASAPInfo info, int type)
 		throws ASAPConversionException
 	{
 		WriteString("SAP\r\n");
@@ -362,8 +376,8 @@ public class ASAPWriter
 			WriteDecSapTag("FASTPLAY ", info.GetPlayerRateScanlines());
 		if (type == 'C')
 			WriteHexSapTag("MUSIC ", info.GetMusicAddress());
-		WriteHexSapTag("INIT ", init);
-		WriteHexSapTag("PLAYER ", player);
+		WriteHexSapTag("INIT ", Init);
+		WriteHexSapTag("PLAYER ", Player);
 		WriteHexSapTag("COVOX ", info.GetCovoxAddress());
 		for (int song = 0; song < info.GetSongs(); song++) {
 			if (info.GetDuration(song) < 0)
@@ -378,17 +392,6 @@ public class ASAPWriter
 		}
 	}
 
-	void WriteExecutableHeader!(int[]!? initAndPlayer, ASAPInfo info, int type, int init, int player)
-		throws ASAPConversionException
-	{
-		if (initAndPlayer == null)
-			WriteSapHeader(info, type, init, player);
-		else {
-			initAndPlayer[0] = init;
-			initAndPlayer[1] = player;
-		}
-	}
-
 	void WritePlaTaxLda0!()
 		throws ASAPConversionException
 	{
@@ -398,11 +401,9 @@ public class ASAPWriter
 		WriteByte(0);
 	}
 
-	void WriteCmcInit!(int[]!? initAndPlayer, ASAPInfo info)
+	void WriteCmcInit!(ASAPInfo info)
 		throws ASAPConversionException
 	{
-		if (initAndPlayer == null)
-			return; // to SAP
 		const int initCmc = 0xfe0; // cms.obx ends at 0xfbe
 		WriteWord(initCmc);
 		WriteWord(initCmc + 16);
@@ -411,32 +412,67 @@ public class ASAPWriter
 		WriteByte(0xa2); WriteByte(music & 0xff); // LDX #<MUSIC
 		WriteByte(0xa0); WriteByte(music >> 8); // LDY #>MUSIC
 		WriteByte(0xa9); WriteByte(0x70); // LDA #$70
-		WriteByte(0x20); WriteWord(initAndPlayer[1] + 3); // JSR PLAYER+3
+		WriteByte(0x20); WriteWord(Player + 3); // JSR PLAYER+3
 		WritePlaTaxLda0(); // PLA; TAX; LDA #0
-		WriteByte(0x4c); WriteWord(initAndPlayer[1] + 3); // JMP PLAYER+3
-		initAndPlayer[0] = initCmc;
-		initAndPlayer[1] += 6;
+		WriteByte(0x4c); WriteWord(Player + 3); // JMP PLAYER+3
+		Init = initCmc;
+		Player += 6;
 	}
 
-	void WriteExecutableFromSap!(int[]! initAndPlayer, ASAPInfo info, int type, byte[] module, int moduleLen)
+	void WriteExecutableFromSap!(bool toSap, ASAPInfo info, int type, byte[] module, int moduleLen)
 		throws ASAPConversionException
 	{
-		WriteExecutableHeader(initAndPlayer, info, type, info.GetInitAddress(), info.Player);
+		Init = info.GetInitAddress();
+		Player = info.Player;
+		if (toSap)
+			WriteSapHeader(info, type);
 		WriteBytes(module, info.HeaderLen, moduleLen);
 	}
 
-	ushort WriteExecutableHeaderForSongPos!(int[]! initAndPlayer, ASAPInfo info, int player, int codeForOneSong, int codeForManySongs, int playerOffset)
+	ushort WriteExecutableHeaderForSongPos!(bool toSap, ASAPInfo info, int type, int player, int codeForOneSong, int codeForManySongs, int playerOffset)
 		throws ASAPConversionException
 	{
+		Player = player + playerOffset;
 		if (info.GetSongs() != 1) {
-			WriteExecutableHeader(initAndPlayer, info, 'B', player - codeForManySongs, player + playerOffset);
+			Init = player - codeForManySongs;
+			if (toSap)
+				WriteSapHeader(info, type);
 			return player - codeForManySongs - info.GetSongs();
 		}
-		WriteExecutableHeader(initAndPlayer, info, 'B', player - codeForOneSong, player + playerOffset);
+		Init = player - codeForOneSong;
+		if (toSap)
+			WriteSapHeader(info, type);
 		return player - codeForOneSong;
 	}
 
-	internal void WriteExecutable!(int[]!? initAndPlayer, ASAPInfo info, byte[] module, int moduleLen)
+	void WriteMptInit!(ASAPInfo info, int player)
+		throws ASAPConversionException
+	{
+		if (info.GetSongs() != 1) {
+			WriteBytes(info.SongPos, 0, info.GetSongs());
+			WriteByte(0x48); // PHA
+		}
+		int music = info.GetMusicAddress();
+		WriteByte(0xa0); WriteByte(music & 0xff); // LDY #<MUSIC
+		WriteByte(0xa2); WriteByte(music >> 8); // LDX #>MUSIC
+		WriteByte(0xa9); WriteByte(0); // LDA #0
+		WriteByte(0x20); WriteWord(player); // JSR PLAYER
+	}
+
+	void WriteMptPlaySong!(ASAPInfo info, int startAddr)
+		throws ASAPConversionException
+	{
+		if (info.GetSongs() != 1) {
+			WriteByte(0x68); WriteByte(0xa8); // PLA; TAY
+			WriteByte(0xbe); WriteWord(startAddr); // LDX SONG2POS,Y
+		}
+		else {
+			WriteByte(0xa2); WriteByte(0); // LDX #0
+		}
+		WriteByte(0xa9); WriteByte(2); // LDA #2
+	}
+
+	internal void WriteExecutable!(bool toSap, ASAPInfo info, byte[] module, int moduleLen)
 		throws ASAPConversionException
 	{
 		byte[]? playerRoutine = ASAP6502.GetPlayerRoutine(info);
@@ -449,33 +485,39 @@ public class ASAPWriter
 			if (music <= playerLastByte)
 				throw ASAPConversionException("Module address conflicts with the player routine");
 		}
+		OutputLen = 0;
 		int startAddr;
 		switch (info.Type) {
 		case ASAPModuleType.SapB:
-			WriteExecutableFromSap(initAndPlayer, info, 'B', module, moduleLen);
+			WriteExecutableFromSap(toSap, info, 'B', module, moduleLen);
 			break;
 		case ASAPModuleType.SapC:
-			WriteExecutableFromSap(initAndPlayer, info, 'C', module, moduleLen);
-			WriteCmcInit(initAndPlayer, info);
+			WriteExecutableFromSap(toSap, info, 'C', module, moduleLen);
+			if (!toSap)
+				WriteCmcInit(info);
 			break;
 		case ASAPModuleType.SapD:
-			WriteExecutableFromSap(initAndPlayer, info, 'D', module, moduleLen);
+			WriteExecutableFromSap(toSap, info, 'D', module, moduleLen);
 			break;
 		case ASAPModuleType.SapS:
-			WriteExecutableFromSap(initAndPlayer, info, 'S', module, moduleLen);
+			WriteExecutableFromSap(toSap, info, 'S', module, moduleLen);
 			break;
 		case ASAPModuleType.Cmc:
 		case ASAPModuleType.Cm3:
 		case ASAPModuleType.Cmr:
 		case ASAPModuleType.Cms:
-			WriteExecutableHeader(initAndPlayer, info, 'C', -1, player);
+			Init = -1;
+			Player = player;
+			if (toSap)
+				WriteSapHeader(info, 'C');
 			WriteWord(0xffff); // some modules start with zeros
 			WriteBytes(module, 2, moduleLen);
 			WriteBytes(playerRoutine, 2, playerLastByte - player + 7);
-			WriteCmcInit(initAndPlayer, info);
+			if (!toSap)
+				WriteCmcInit(info);
 			break;
 		case ASAPModuleType.Dlt:
-			startAddr = WriteExecutableHeaderForSongPos(initAndPlayer, info, player, 5, 7, 0x103);
+			startAddr = WriteExecutableHeaderForSongPos(toSap, info, 'B', player, 5, 7, 0x103);
 			if (moduleLen == 0x2c06) {
 				// append zero to the module
 				WriteBytes(module, 0, 4);
@@ -499,30 +541,53 @@ public class ASAPWriter
 			WriteBytes(playerRoutine, 6, playerLastByte - player + 7);
 			break;
 		case ASAPModuleType.Mpt:
-			startAddr = WriteExecutableHeaderForSongPos(initAndPlayer, info, player, 13, 17, 3);
+			startAddr = WriteExecutableHeaderForSongPos(toSap, info, 'B', player, 13, 17, 3);
 			WriteBytes(module, 0, moduleLen);
 			WriteWord(startAddr);
 			WriteWord(playerLastByte);
-			if (info.GetSongs() != 1) {
-				WriteBytes(info.SongPos, 0, info.GetSongs());
-				WriteByte(0x48); // PHA
-			}
-			WriteByte(0xa0); WriteByte(music & 0xff); // LDY #<MUSIC
-			WriteByte(0xa2); WriteByte(music >> 8); // LDX #>MUSIC
-			WriteByte(0xa9); WriteByte(0); // LDA #0
+			WriteMptInit(info, player);
+			WriteMptPlaySong(info, startAddr);
+			WriteBytes(playerRoutine, 6, playerLastByte - player + 7);
+			break;
+		case ASAPModuleType.Md1:
+		case ASAPModuleType.Md2:
+			if (Loader == null)
+				throw ASAPConversionException("MD1/MD2 conversion not supported by this program");
+			ASAPMptSamples() samples;
+			if (!samples.Load(Loader, SourceFilename))
+				throw ASAPConversionException("Missing D15/D8 file");
+			samples.Relocate(music, music + moduleLen - 5);
+			int samplesPage = samples.Content[0] - 1;
+
+			int codeForOneSong = info.Type == ASAPModuleType.Md1 ? 29 : 27;
+			startAddr = WriteExecutableHeaderForSongPos(toSap, info, 'D', player, codeForOneSong, codeForOneSong + 4, 3);
+			WriteBytes(module, 0, moduleLen);
+			WriteByte(0xe0); WriteByte(samplesPage);
+			WriteByte(0xff); WriteByte(samplesPage + (samples.ContentLength >> 8));
+			WriteBytes(samples.Content, 0, samples.ContentLength);
+			WriteWord(startAddr);
+			WriteWord(playerLastByte);
+			WriteMptInit(info, player);
+			WriteByte(0xa0); WriteByte(0xe0); // LDY #<SAMPLES
+			WriteByte(0xa2); WriteByte(samplesPage); // LDX #>SAMPLES
+			WriteByte(0xa9); WriteByte(3); // LDA #3
 			WriteByte(0x20); WriteWord(player); // JSR PLAYER
-			if (info.GetSongs() != 1) {
-				WriteByte(0x68); WriteByte(0xa8); // PLA; TAY
-				WriteByte(0xbe); WriteWord(startAddr); // LDX SONG2POS,Y
+			WriteMptPlaySong(info, startAddr);
+			WriteByte(0x20); WriteWord(player); // JSR PLAYER
+			if (info.Type == ASAPModuleType.Md1) {
+				WriteByte(0xa2); WriteByte(samples.Is15kHz ? 1 : 0); // LDX #IS_15KHZ
+				WriteByte(0xa9); WriteByte(5); // LDA #5
 			}
 			else {
-				WriteByte(0xa2); WriteByte(0); // LDX #0
+				WriteByte(0xa9); WriteByte(6); // LDA #6
 			}
-			WriteByte(0xa9); WriteByte(2); // LDA #2
 			WriteBytes(playerRoutine, 6, playerLastByte - player + 7);
 			break;
 		case ASAPModuleType.Rmt:
-			WriteExecutableHeader(initAndPlayer, info, 'B', ASAPInfo.RmtInit, 0x603);
+			Init = ASAPInfo.RmtInit;
+			Player = 0x603;
+			if (toSap)
+				WriteSapHeader(info, 'B');
 			WriteBytes(module, 0, ASAPInfo.GetWord(module, 4) - music + 7);
 			WriteWord(ASAPInfo.RmtInit);
 			if (info.GetSongs() != 1) {
@@ -544,14 +609,15 @@ public class ASAPWriter
 		case ASAPModuleType.Tmc:
 			int perFrame = module[0x25];
 			const int[4] tmcPlayerOffset = { 3, -9, -10, -10 };
-			int player2 = player + tmcPlayerOffset[perFrame - 1];
+			Player = player + tmcPlayerOffset[perFrame - 1];
 			const int[4] tmcInitOffset = { -14, -16, -17, -17 };
-			startAddr = player2 + tmcInitOffset[perFrame - 1];
+			Init = Player + tmcInitOffset[perFrame - 1];
 			if (info.GetSongs() != 1)
-				startAddr -= 3;
-			WriteExecutableHeader(initAndPlayer, info, 'B', startAddr, player2);
+				Init -= 3;
+			if (toSap)
+				WriteSapHeader(info, 'B');
 			WriteBytes(module, 0, moduleLen);
-			WriteWord(startAddr);
+			WriteWord(Init);
 			WriteWord(playerLastByte);
 			if (info.GetSongs() != 1)
 				WriteByte(0x48); // PHA
@@ -592,7 +658,10 @@ public class ASAPWriter
 			break;
 		case ASAPModuleType.Tm2:
 			const int tm2Init = 0x1380;
-			WriteExecutableHeader(initAndPlayer, info, 'B', tm2Init, 0x803);
+			Init = tm2Init;
+			Player = 0x803;
+			if (toSap)
+				WriteSapHeader(info, 'B');
 			WriteBytes(module, 0, moduleLen);
 			WriteWord(tm2Init);
 			if (info.GetSongs() != 1) {
@@ -615,13 +684,18 @@ public class ASAPWriter
 			WriteBytes(playerRoutine, 2, playerLastByte - player + 7);
 			break;
 		case ASAPModuleType.Fc:
-			WriteExecutableHeader(initAndPlayer, info, 'B', player, player + 3);
+			Init = player;
+			Player = player + 3;
+			if (toSap)
+				WriteSapHeader(info, 'B');
 			WriteWord(0xffff);
 			WriteWord(music);
 			WriteWord(music + moduleLen - 1);
 			WriteBytes(module, 0, moduleLen);
 			WriteBytes(playerRoutine, 2, playerLastByte - player + 7);
 			break;
+		default:
+			throw ASAPConversionException("Unknown format");
 		}
 	}
 
@@ -761,49 +835,105 @@ public class ASAPWriter
 		WriteBytes(resource<byte[]>("xexinfo.obx"), 6, resource<byte[]>("xexinfo.obx").Length);
 	}
 
-	void WriteNative!(ASAPInfo info, byte[] module, int moduleLen)
+	/// Writes the a native module, possibly extracting it from a SAP file.
+	public byte[] WriteNative!(
+		/// Source file information, optionally with the address changed.
+		ASAPInfo info,
+		/// Contents of the source file.
+		byte[] module,
+		/// Length of the source file.
+		int moduleLen)
 		throws ASAPConversionException
 	{
 		ASAPNativeModuleWriter() nativeWriter;
 		nativeWriter.Writer = this;
 		nativeWriter.SourceModule = module;
+		OutputLen = 0;
 
-		ASAPModuleType type = info.Type;
-		switch (type) {
+		switch (info.Type) {
 		case ASAPModuleType.SapB:
 		case ASAPModuleType.SapC:
+		case ASAPModuleType.SapD:
 			// SAP -> native
 			int offset = info.GetRmtSapOffset(module, moduleLen);
 			if (offset > 0) {
 				// RMT-generated SAP -> RMT
 				nativeWriter.SourceOffset = offset - 2;
 				nativeWriter.Write(info, ASAPModuleType.Rmt, moduleLen - offset + 2);
-				return;
+				break;
 			}
 			nativeWriter.SourceOffset = info.HeaderLen;
 			int blockLen = nativeWriter.GetWord(4) - nativeWriter.GetWord(2) + 7;
 			if (blockLen < 7 || info.HeaderLen + blockLen >= moduleLen)
 				throw ASAPConversionException("Cannot extract module from SAP");
-			type = info.GetOriginalModuleType(module, moduleLen);
-			if (type == ASAPModuleType.Fc)
+			if (info.OriginalType == ASAPModuleType.Fc)
 				WriteBytes(module, info.HeaderLen + 6, info.HeaderLen + blockLen); // SAP -> FC
 			else
-				nativeWriter.Write(info, type, blockLen); // SAP -> native
+				nativeWriter.Write(info, info.OriginalType, blockLen); // SAP -> native
 			break;
 		case ASAPModuleType.Fc:
-			// FC -> FC
+		case ASAPModuleType.D15: // TODO: relocate
+			// FC -> FC, D15 -> D15
 			WriteBytes(module, 0, moduleLen);
-			return;
+			break;
 		default:
 			// native -> native
 			nativeWriter.SourceOffset = 0;
-			nativeWriter.Write(info, type, moduleLen);
+			nativeWriter.Write(info, info.Type, moduleLen);
 			break;
 		}
+		return Output;
+	}
+
+	/// Writes the given module in the SAP format.
+	public byte[] WriteSap!(
+		/// Source file information, with metadata updated for the output.
+		ASAPInfo info,
+		/// Contents of the source file.
+		byte[] module,
+		/// Length of the source file.
+		int moduleLen)
+		throws ASAPConversionException
+	{
+		WriteExecutable(true, info, module, moduleLen);
+		return Output;
+	}
+
+	/// Returns the number of bytes written by `WriteNative` or `WriteSap`.
+	public int GetOutputLength() => OutputLen;
+
+	/// Writes a SAP/XEX/native module file.
+	/// If `Write` is used, `Save` needs to be overridden in a subclass of `ASAPWriter`.
+	protected virtual void Save!(
+		/// Output filename.
+		string filename,
+		/// Contents to write.
+		byte[] buffer,
+		/// Starting index in `buffer` to write into the file.
+		int offset,
+		/// Number of bytes to write.
+		int length)
+		throws ASAPIOException
+	{
+	}
+
+	void WriteMptSamples!(string moduleFilename, ASAPInfo info, byte[] module, int moduleLen, int extNumber)
+		throws ASAPConversionException, ASAPIOException
+	{
+		int offset = info.HeaderLen + OutputLen + 4;
+		if (offset + 0x100 >= moduleLen || module[offset - 4] != 0xe0 || module[offset - 2] != 0xff)
+			throw ASAPConversionException("Invalid samples block");
+		int length = (module[offset - 1] - module[offset - 3]) << 8 | 0x20;
+		if (offset + length >= moduleLen)
+			throw ASAPConversionException("Invalid samples block");
+		nint moduleExt = moduleFilename.Length - 3;
+		string extInitial = moduleFilename[moduleExt] == 'M' ? "D" : "d";
+		string() filename = $"{moduleFilename.Substring(0, moduleExt)}{extInitial}{extNumber}";
+		Save(filename, module, offset, length);
 	}
 
 	/// Writes the given module in a possibly different file format.
-	public uint Write!(
+	public void Write!(
 		/// Output filename, used to determine the format.
 		string targetFilename,
 		/// File information got from the source file with data updated for the output file.
@@ -814,70 +944,93 @@ public class ASAPWriter
 		int moduleLen,
 		/// Display information (xex output only).
 		bool tag)
-		throws ASAPConversionException
+		throws ASAPConversionException, ASAPIOException
 	{
 		int destExt = ASAPInfo.GetPackedExt(targetFilename);
 		switch (destExt) {
 		case ASAPInfo.PackExt("SAP"):
 			// * -> SAP
-			WriteExecutable(null, info, module, moduleLen);
-			return OutputOffset;
+			WriteExecutable(true, info, module, moduleLen);
+			Save(targetFilename, Output, 0, OutputLen);
+			return;
 		case ASAPInfo.PackExt("XEX"):
 			// * -> XEX
-			{
-				int[2] initAndPlayer;
-				WriteExecutable(initAndPlayer, info, module, moduleLen);
-				switch (info.Type) {
-				case ASAPModuleType.SapD:
-					if (info.GetPlayerRateScanlines() != 312)
-						throw ASAPConversionException("Impossible conversion");
-					WriteBytes(resource<byte[]>("xexd.obx"), 2, resource<byte[]>("xexd.obx").Length);
-					WriteWord(initAndPlayer[0]);
-					if (initAndPlayer[1] < 0) {
-						WriteByte(0x60); // RTS
-						WriteByte(0x60); // don't care
-						WriteByte(0x60); // don't care
-					}
-					else {
-						WriteByte(0x4c); // JMP
-						WriteWord(initAndPlayer[1]);
-					}
-					WriteByte(info.GetDefaultSong());
-					break;
-				case ASAPModuleType.SapS:
+			WriteExecutable(false, info, module, moduleLen);
+			switch (info.Type) {
+			case ASAPModuleType.SapD:
+			case ASAPModuleType.Md1:
+			case ASAPModuleType.Md2:
+				if (info.GetPlayerRateScanlines() != 312)
 					throw ASAPConversionException("Impossible conversion");
-				default:
-					WriteBytes(resource<byte[]>("xexb.obx"), 2, resource<byte[]>("xexb.obx").Length);
-					WriteWord(initAndPlayer[0]);
-					WriteByte(0x4c); // JMP
-					WriteWord(initAndPlayer[1]);
-					WriteByte(info.GetDefaultSong());
-					int fastplay = info.GetPlayerRateScanlines();
-					WriteByte(fastplay & 1);
-					WriteByte((fastplay >> 1) % 156);
-					WriteByte((fastplay >> 1) % 131);
-					WriteByte(fastplay / 312);
-					WriteByte(fastplay / 262);
-					break;
+				WriteBytes(resource<byte[]>("xexd.obx"), 2, resource<byte[]>("xexd.obx").Length);
+				WriteWord(Init);
+				if (Player < 0) {
+					WriteByte(0x60); // RTS
+					WriteByte(0x60); // don't care
+					WriteByte(0x60); // don't care
 				}
-				if (tag)
-					WriteXexInfo(info);
-				WriteWord(0x2e0);
-				WriteWord(0x2e1);
-				WriteWord(tag ? 0x100 : 0x124); // must match xexinfo.asx, xexb.asx, xexd.asx
-				FlashPack() flashPack;
-				flashPack.Compress(this);
-				return OutputOffset;
+				else {
+					WriteByte(0x4c); // JMP
+					WriteWord(Player);
+				}
+				WriteByte(info.GetDefaultSong());
+				break;
+			case ASAPModuleType.SapS:
+				throw ASAPConversionException("Impossible conversion");
+			default:
+				WriteBytes(resource<byte[]>("xexb.obx"), 2, resource<byte[]>("xexb.obx").Length);
+				WriteWord(Init);
+				WriteByte(0x4c); // JMP
+				WriteWord(Player);
+				WriteByte(info.GetDefaultSong());
+				int fastplay = info.GetPlayerRateScanlines();
+				WriteByte(fastplay & 1);
+				WriteByte((fastplay >> 1) % 156);
+				WriteByte((fastplay >> 1) % 131);
+				WriteByte(fastplay / 312);
+				WriteByte(fastplay / 262);
+				break;
 			}
+			if (tag)
+				WriteXexInfo(info);
+			WriteWord(0x2e0);
+			WriteWord(0x2e1);
+			WriteWord(tag ? 0x100 : 0x124); // must match xexinfo.asx, xexb.asx, xexd.asx
+			FlashPack() flashPack;
+			flashPack.Compress(this);
+			Save(targetFilename, Output, 0, OutputLen);
+			return;
 		default:
-			string? possibleExt = info.GetOriginalModuleExt(module, moduleLen);
+			string? possibleExt = info.GetOriginalModuleExt();
 			if (possibleExt != null) {
 				int packedPossibleExt = ASAPInfo.PackExt(possibleExt);
 				if (destExt == packedPossibleExt
 				 || (destExt == ASAPInfo.PackExt("TM8") && packedPossibleExt == ASAPInfo.PackExt("TMC"))) {
 					// * -> native
 					WriteNative(info, module, moduleLen);
-					return OutputOffset;
+					Save(targetFilename, Output, 0, OutputLen);
+					if (info.Type == ASAPModuleType.SapD) {
+						switch (info.OriginalType) {
+						case ASAPModuleType.Md1:
+							switch (module[moduleLen - 2230]) {
+							case 0:
+								WriteMptSamples(targetFilename, info, module, moduleLen, 8);
+								break;
+							case 1:
+								WriteMptSamples(targetFilename, info, module, moduleLen, 15);
+								break;
+							default:
+								throw ASAPConversionException("Unknown MD1 samples");
+							}
+							break;
+						case ASAPModuleType.Md2:
+							WriteMptSamples(targetFilename, info, module, moduleLen, 8);
+							break;
+						default:
+							break;
+						}
+					}
+					return;
 				}
 			}
 			throw ASAPConversionException("Impossible conversion");

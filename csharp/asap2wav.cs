@@ -1,7 +1,7 @@
 /*
  * asap2wav.cs - converter of ASAP-supported formats to WAV files
  *
- * Copyright (C) 2008-2012  Piotr Fusik
+ * Copyright (C) 2008-2025  Piotr Fusik
  *
  * This file is part of ASAP (Another Slight Atari Player),
  * see http://asap.sourceforge.net
@@ -84,14 +84,9 @@ public class Asap2Wav
 
 	static void ProcessFile(string inputFilename)
 	{
-		byte[] module = new byte[ASAPInfo.MaxModuleLength];
-		int moduleLen;
-		using (Stream s = File.OpenRead(inputFilename)) {
-			moduleLen = s.Read(module, 0, module.Length);
-		}
 		ASAP asap = new ASAP();
 		asap.SetSampleRate(SampleRate);
-		asap.Load(inputFilename, module, moduleLen);
+		asap.LoadFiles(inputFilename, new FileSystemLoader());
 		ASAPInfo info = asap.GetInfo();
 		if (Song < 0)
 			Song = info.GetDefaultSong();

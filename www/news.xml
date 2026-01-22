@@ -1,4 +1,18 @@
 ﻿<page title="News">
+	<release version="7.0.0" date="2025-12-20">
+		<ul>
+			<li>New input formats: MD1+D15, MD1+D8, MD2+D8</li>
+			<li>Improved STIMER emulation (for the "Unleashed" demo soundtrack by Kamil Wolnikowski)</li>
+			<li>VLC now opens all formats when started from a <code>vlc --demux=asap INPUT_FILE</code> command line</li>
+			<li>XMMS2 plugin now compiles with XMMS2 0.9 (requested by Drei Eck)</li>
+			<li>Fixed broken audio when unmuting POKEY channels during playback (since 6.0.0, reported by Ciro Scognamiglio)</li>
+			<li>Fixed stereo POKEY initialization in XEX conversions (by Peter Dell)</li>
+			<li>Fixed metadata not shown in Windows Explorer details pane and properties window</li>
+			<li>Fixed TortoiseGit/TortoiseSVN plugins not working in recent releases</li>
+			<li>Made the website mobile-friendly</li>
+		</ul>
+	</release>
+
 	<release version="6.0.3" date="2024-03-09">
 		<ul>
 			<li>Fixed Windows installer broken in 6.0.2.</li>

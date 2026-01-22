@@ -1,7 +1,7 @@
 /*
  * info_dlg.h - file information dialog box
  *
- * Copyright (C) 2007-2022  Piotr Fusik
+ * Copyright (C) 2007-2025  Piotr Fusik
  *
  * This file is part of ASAP (Another Slight Atari Player),
  * see http://asap.sourceforge.net
@@ -22,7 +22,6 @@
  */
 
 #include <windows.h>
-#include <tchar.h>
 #include <stdbool.h>
 
 #ifdef __cplusplus
@@ -49,13 +48,14 @@ extern "C" {
 #define IDD_PROGRESS   500
 #define IDC_PROGRESS   501
 
-void combineFilenameExt(LPTSTR dest, LPCTSTR filename, LPCTSTR ext);
-bool loadModule(LPCTSTR filename, BYTE *module, int *module_len, LPCTSTR *module_hash);
+void combineFilenameExt(const wchar_t *dest, const wchar_t *filename, const wchar_t *ext);
+bool loadModule(const wchar_t *filename, BYTE *module, int *module_len, LPCTSTR *module_hash);
+bool loadFiles(ASAP *asap, const wchar_t *filename);
 
 extern HWND infoDialog;
-void showInfoDialog(HINSTANCE hInstance, HWND hwndParent, LPCTSTR filename, int song);
-void updateInfoDialog(LPCTSTR filename, int song);
-void setPlayingSong(LPCTSTR filename, int song);
+void showInfoDialog(HINSTANCE hInstance, HWND hwndParent, const wchar_t *filename, int song);
+void updateInfoDialog(const wchar_t *filename, int song);
+void setPlayingSong(const wchar_t *filename, int song);
 #ifdef FOOBAR2000
 void setDarkInfoDialog(HWND hDlg);
 void releaseDarkInfoDialog(void);

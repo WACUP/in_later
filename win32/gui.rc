@@ -1,7 +1,7 @@
 /*
  * gui.rc - Windows resources
  *
- * Copyright (C) 2005-2023  Piotr Fusik
+ * Copyright (C) 2005-2026  Piotr Fusik
  *
  * This file is part of ASAP (Another Slight Atari Player),
  * see http://asap.sourceforge.net
@@ -42,14 +42,49 @@
 LANGUAGE LANG_ENGLISH, SUBLANG_ENGLISH_UK
 #pragma code_page(1252)
 
+IDD_SETTINGS DIALOG 0, 0, 184, 234
+STYLE DS_3DLOOK | DS_CENTER | DS_MODALFRAME | WS_POPUPWINDOW
+CAPTION "ASAP Settings"
+FONT 8, "MS Shell Dlg"
+{
+	LTEXT "Output sample rate", IDC_STATIC, 16, 6, 68, 12
+	COMBOBOX IDC_SAMPLERATE, 88, 4, 28, 12, CBS_DROPDOWNLIST | WS_TABSTOP
+	LTEXT "kHz", IDC_STATIC, 120, 6, 16, 12
+	GROUPBOX "Songs with unspecified length", IDC_STATIC, 8, 22, 168, 64
+	AUTORADIOBUTTON "Play endlessly", IDC_UNLIMITED, 16, 34, 152, 12, BS_AUTORADIOBUTTON | WS_TABSTOP | WS_GROUP
+	AUTORADIOBUTTON "Finish after", IDC_LIMITED, 16, 48, 48, 12
+	EDITTEXT IDC_MINUTES, 68, 48, 16, 12, ES_NUMBER | ES_RIGHT | WS_BORDER | WS_TABSTOP
+	LTEXT "m", IDC_STATIC, 88, 50, 10, 12
+	EDITTEXT IDC_SECONDS, 100, 48, 16, 12, ES_NUMBER | ES_RIGHT | WS_BORDER | WS_TABSTOP
+	LTEXT "s", IDC_STATIC, 120, 50, 10, 12
+	AUTOCHECKBOX "Finish after", IDC_SILENCE, 16, 66, 48, 12
+	EDITTEXT IDC_SILSECONDS, 68, 66, 16, 12, ES_NUMBER | ES_RIGHT | WS_BORDER | WS_TABSTOP
+	LTEXT "seconds of silence", IDC_STATIC, 88, 68, 64, 12
+	GROUPBOX "Loops", IDC_STATIC, 8, 90, 168, 46
+	AUTORADIOBUTTON "Play as above", IDC_LOOPS, 16, 102, 152, 12, BS_AUTORADIOBUTTON | WS_TABSTOP | WS_GROUP
+	AUTORADIOBUTTON "Play just once", IDC_NOLOOPS, 16, 116, 152, 12
+	GROUPBOX "Mute base POKEY", IDC_STATIC, 8, 140, 80, 64
+	AUTOCHECKBOX "Channel 1", IDC_MUTE1, 24, 150, 48, 12
+	AUTOCHECKBOX "Channel 2", IDC_MUTE1 + 1, 24, 162, 48, 12
+	AUTOCHECKBOX "Channel 3", IDC_MUTE1 + 2, 24, 174, 48, 12
+	AUTOCHECKBOX "Channel 4", IDC_MUTE1 + 3, 24, 186, 48, 12
+	GROUPBOX "Mute extra POKEY", IDC_STATIC, 96, 140, 80, 64
+	AUTOCHECKBOX "Channel 1", IDC_MUTE1 + 4, 112, 150, 48, 12
+	AUTOCHECKBOX "Channel 2", IDC_MUTE1 + 5, 112, 162, 48, 12
+	AUTOCHECKBOX "Channel 3", IDC_MUTE1 + 6, 112, 174, 48, 12
+	AUTOCHECKBOX "Channel 4", IDC_MUTE1 + 7, 112, 186, 48, 12
+	DEFPUSHBUTTON "OK", IDOK, 38, 212, 50, 14
+	PUSHBUTTON "Cancel", IDCANCEL, 96, 212, 50, 14
+}
+
 /////////////////////////////////////////////////////////////////////////////
 //
 // Version
 //
 
 1 VERSIONINFO
- FILEVERSION 6,0,3,21
- PRODUCTVERSION 6,0,3,21
+ FILEVERSION 7,0,0,23
+ PRODUCTVERSION 7,0,0,23
  FILEFLAGSMASK 0x17L
 #ifdef _DEBUG
  FILEFLAGS 0x1L
@@ -66,12 +101,12 @@ BEGIN
         BEGIN
             VALUE "CompanyName", "WACUP"
             VALUE "FileDescription", "Input Plug-in"
-            VALUE "FileVersion", "6.0.3.21"
+            VALUE "FileVersion", "7.0.0.23"
             VALUE "InternalName", "in_later.dll"
-            VALUE "LegalCopyright", "Copyleft 2005-2025 Piotr Fusik. WACUP related modifications by Darren Owen aka DrO (2023-2025)"
+            VALUE "LegalCopyright", "Copyleft 2005-2026 Piotr Fusik. WACUP related modifications by Darren Owen aka DrO (2023-2026)"
             VALUE "OriginalFilename", "in_later.dll"
             VALUE "ProductName", "ASAP (Another Slight Atari Player) Decoder"
-            VALUE "ProductVersion", "6.0.3.21"
+            VALUE "ProductVersion", "7.0.0.23"
         END
     END
     BLOCK "VarFileInfo"

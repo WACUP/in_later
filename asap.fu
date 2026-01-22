@@ -1,6 +1,6 @@
 // asap.fu - emulation engine
 //
-// Copyright (C) 2010-2024  Piotr Fusik
+// Copyright (C) 2010-2026  Piotr Fusik
 //
 // This file is part of ASAP (Another Slight Atari Player),
 // see http://asap.sourceforge.net
@@ -18,6 +18,76 @@
 // You should have received a copy of the GNU General Public License
 // along with ASAP; if not, write to the Free Software Foundation, Inc.,
 // 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
+
+#if !ASAP_ONLY_SAP && !OPENCL
+public abstract class ASAPFileLoader
+{
+	public abstract int Load(string filename, byte[]! buffer, int length);
+}
+
+class ASAPMptSamples
+{
+	const int MinLength = 32 + 256;
+	const int MaxLength = 32 + 12 * 1024;
+	internal byte[MaxLength] Content;
+	internal int ContentLength;
+	internal bool Is15kHz;
+
+	bool DoLoad!(ASAPFileLoader loader, string moduleFilename, nint moduleFilenameLength, int extNumber)
+	{
+		string extInitial = moduleFilename[moduleFilenameLength - 3] == 'M' ? "D" : "d";
+		string() filename = $"{moduleFilename.Substring(0, moduleFilenameLength - 3)}{extInitial}{extNumber}";
+		ContentLength = loader.Load(filename, Content, MaxLength);
+		if (ContentLength < MinLength)
+			return false;
+		int end = -1;
+		for (int i = 0; i < 16; i++) {
+			int start = Content[i];
+			if (start == 0) {
+				for (; i < 16; i++) {
+					if (Content[i] != 0 || Content[16 + i] != 0)
+						return false;
+				}
+				break;
+			}
+			if (i > 0 && start != end)
+				return false;
+			end = Content[16 + i];
+			if (end <= start)
+				return false;
+		}
+		return ContentLength >= (end - Content[0] << 8) + 0x20; // equal, or garbage data at the end
+	}
+
+	public bool Load!(ASAPFileLoader loader, string moduleFilename)
+	{
+		nint moduleFilenameLength = moduleFilename.Length;
+		if (moduleFilename[moduleFilenameLength - 1] == '1'
+		 && DoLoad(loader, moduleFilename, moduleFilenameLength, 15)) {
+			Is15kHz = true;
+			return true;
+		}
+		if (DoLoad(loader, moduleFilename, moduleFilenameLength, 8)) {
+			Is15kHz = false;
+			return true;
+		}
+		return false;
+	}
+
+	public void Relocate!(int music, int musicLast)
+	{
+		int start = (Content[0] << 8) - 0x20;
+		if ((musicLast < start || music >= start + ContentLength) && start >= 0xf00) // assume player ends before $0f00
+			return;
+		int h = 0x0fe0 + ContentLength <= music ? 0x10 : (0xd020 - ContentLength) >> 8;
+		h -= Content[0];
+		for (int i = 0; i < 32; i++) {
+			if (Content[i] != 0)
+				Content[i] += h;
+		}
+	}
+}
+#endif
 
 enum NmiStatus
 {
@@ -51,6 +121,10 @@ public class ASAP
 	PokeyPair() Pokeys;
 
 	ASAPInfo() ModuleInfo;
+	int MptSamplesPage; // MD1/MD2 only
+	bool MptSamples15kHz; // MD1/MD2 only
+	int MptSamplesCurrentAddress; // D15/D8 only
+	bool MptSamplesSecondNibble; // D15/D8 only
 	int NextPlayerCycle;
 	int TmcPerFrameCounter;
 	int CurrentSong;
@@ -170,13 +244,38 @@ public class ASAP
 			Cpu.Memory[addr] = data;
 	}
 
-	void Call6502!(int addr)
+	void StoreJsr!(int addr, int target)
+	{
+		Cpu.Memory[addr] = 0x20; // JSR
+		Cpu.Memory[addr + 1] = target & 0xff;
+		Cpu.Memory[addr + 2] = target >> 8;
+	}
+
+	void Call6502!(int target)
 	{
 		const int codeAddr = 0xd200;
-		Cpu.Memory[codeAddr] = 0x20; // JSR
-		Cpu.Memory[codeAddr + 1] = addr & 0xff;
-		Cpu.Memory[codeAddr + 2] = addr >> 8;
+		StoreJsr(codeAddr, target);
 		Cpu.Memory[codeAddr + 3] = 0xd2; // escape
+		Cpu.Pc = codeAddr;
+	}
+
+	void Call6502PreservingRegisters!(int target)
+	{
+		Cpu.PushPc();
+		const int codeAddr = 0xd200;
+		Cpu.Memory[codeAddr] = 0x08; // PHP
+		Cpu.Memory[codeAddr + 1] = 0x48; // PHA
+		Cpu.Memory[codeAddr + 2] = 0x8a; // TXA
+		Cpu.Memory[codeAddr + 3] = 0x48; // PHA
+		Cpu.Memory[codeAddr + 4] = 0x98; // TYA
+		Cpu.Memory[codeAddr + 5] = 0x48; // PHA
+		StoreJsr(codeAddr + 6, target);
+		Cpu.Memory[codeAddr + 9] = 0x68; // PLA
+		Cpu.Memory[codeAddr + 10] = 0xa8; // TAY
+		Cpu.Memory[codeAddr + 11] = 0x68; // PLA
+		Cpu.Memory[codeAddr + 12] = 0xaa; // TAX
+		Cpu.Memory[codeAddr + 13] = 0x68; // PLA
+		Cpu.Memory[codeAddr + 14] = 0x40; // RTI
 		Cpu.Pc = codeAddr;
 	}
 
@@ -197,26 +296,8 @@ public class ASAP
 			Call6502(player + 6);
 			break;
 		case ASAPModuleType.SapD:
-			if (player >= 0) {
-				Cpu.PushPc();
-				const int codeAddr = 0xd200;
-				Cpu.Memory[codeAddr] = 0x08; // PHP
-				Cpu.Memory[codeAddr + 1] = 0x48; // PHA
-				Cpu.Memory[codeAddr + 2] = 0x8a; // TXA
-				Cpu.Memory[codeAddr + 3] = 0x48; // PHA
-				Cpu.Memory[codeAddr + 4] = 0x98; // TYA
-				Cpu.Memory[codeAddr + 5] = 0x48; // PHA
-				Cpu.Memory[codeAddr + 6] = 0x20; // JSR
-				Cpu.Memory[codeAddr + 7] = player & 0xff;
-				Cpu.Memory[codeAddr + 8] = player >> 8;
-				Cpu.Memory[codeAddr + 9] = 0x68; // PLA
-				Cpu.Memory[codeAddr + 10] = 0xa8; // TAY
-				Cpu.Memory[codeAddr + 11] = 0x68; // PLA
-				Cpu.Memory[codeAddr + 12] = 0xaa; // TAX
-				Cpu.Memory[codeAddr + 13] = 0x68; // PLA
-				Cpu.Memory[codeAddr + 14] = 0x40; // RTI
-				Cpu.Pc = codeAddr;
-			}
+			if (player >= 0)
+				Call6502PreservingRegisters(player);
 			break;
 		case ASAPModuleType.SapS:
 			int i = Cpu.Memory[0x45] - 1;
@@ -234,6 +315,10 @@ public class ASAP
 		case ASAPModuleType.Fc:
 			Call6502(player + 3);
 			break;
+		case ASAPModuleType.Md1:
+		case ASAPModuleType.Md2:
+			Call6502PreservingRegisters(player + 3);
+			break;
 		case ASAPModuleType.Tmc:
 			if (--TmcPerFrameCounter <= 0) {
 				TmcPerFrameCounter = Cpu.Memory[ModuleInfo.GetMusicAddress() + 0x1f];
@@ -241,6 +326,21 @@ public class ASAP
 			}
 			else
 				Call6502(player + 6);
+			break;
+		case ASAPModuleType.D15:
+			if (Cpu.Cycle < ASAPInfo.MptSamplesVblkPauseScanlines * 114 // pause samples every frame
+			 || MptSamplesCurrentAddress >> 8 >= Cpu.Memory[ModuleInfo.GetMusicAddress() + 0x10 + CurrentSong]) // sample finished?
+				break;
+			int b = Cpu.Memory[MptSamplesCurrentAddress];
+			if (MptSamplesSecondNibble) {
+				MptSamplesCurrentAddress++;
+				MptSamplesSecondNibble = false;
+			}
+			else {
+				b >>= 4;
+				MptSamplesSecondNibble = true;
+			}
+			Pokeys.Poke(0xd201, b | 0xf0, Cpu.Cycle);
 			break;
 #if EXPERIMENTAL_XEX
 		case ASAPModuleType.Xex:
@@ -301,13 +401,45 @@ public class ASAP
 	/// Loads music data ("module").
 	public void Load!(
 		/// Filename, used to determine the format.
-		string filename,
+		string? filename,
 		/// Contents of the file.
 		byte[] module,
 		/// Length of the file.
 		int moduleLen)
 		throws ASAPFormatException
 	{
+#if !ASAP_ONLY_SAP && !OPENCL
+		LoadWithExtraFiles(filename, module, moduleLen, null);
+	}
+
+	/// Loads music data, possibly from several files.
+	public void LoadFiles!(
+		/// Filename of the main file ("module").
+		string filename,
+		/// File loader.
+		ASAPFileLoader loader)
+		throws ASAPFormatException
+	{
+		byte[ASAPInfo.MaxModuleLength] module;
+		int moduleLen = loader.Load(filename, module, module.Length);
+		if (moduleLen < 0)
+			throw ASAPFormatException("File not found");
+		LoadWithExtraFiles(filename, module, moduleLen, loader);
+	}
+
+	/// Loads music data, possibly with extra files.
+	public void LoadWithExtraFiles!(
+		/// Filename, used to determine the format.
+		string? filename,
+		/// Contents of the main file.
+		byte[] module,
+		/// Length of the main file.
+		int moduleLen,
+		/// Loader for extra files, should they be needed.
+		ASAPFileLoader? loader)
+		throws ASAPFormatException
+	{
+#endif
 		ModuleInfo.Load(filename, module, moduleLen);
 #if !ASAP_ONLY_SAP
 		byte[]? playerRoutine = ASAP6502.GetPlayerRoutine(ModuleInfo);
@@ -315,8 +447,21 @@ public class ASAP
 			int player = ASAPInfo.GetWord(playerRoutine, 2);
 			int playerLastByte = ASAPInfo.GetWord(playerRoutine, 4);
 			int music = ModuleInfo.GetMusicAddress();
-			if (music <= playerLastByte)
+			if (music <= playerLastByte) // FIXME: MPT player has variables at the end
 				throw ASAPFormatException("Module address conflicts with the player routine");
+#if !OPENCL
+			if (ModuleInfo.Type == ASAPModuleType.Md1 || ModuleInfo.Type == ASAPModuleType.Md2) {
+				if (loader == null)
+					throw ASAPFormatException("MD1/MD2 not supported in this ASAP port");
+				ASAPMptSamples() samples;
+				if (!samples.Load(loader, filename))
+					throw ASAPFormatException("Missing D15/D8 file");
+				samples.Relocate(music, music + moduleLen - 5);
+				MptSamplesPage = samples.Content[0];
+				MptSamples15kHz = samples.Is15kHz;
+				samples.Content.CopyTo(0, Cpu.Memory, (MptSamplesPage << 8) - 0x20, samples.ContentLength);
+			}
+#endif
 			Cpu.Memory[0x4c00] = 0; // for 11270-byte DLT
 			if (ModuleInfo.Type == ASAPModuleType.Fc)
 				module.CopyTo(0, Cpu.Memory, music, moduleLen);
@@ -325,6 +470,10 @@ public class ASAP
 			playerRoutine.CopyTo(6, Cpu.Memory, player, playerLastByte + 1 - player);
 			if (ModuleInfo.Player < 0)
 				ModuleInfo.Player = player;
+			return;
+		}
+		if (ModuleInfo.Type == ASAPModuleType.D15) {
+			module.CopyTo(0, Cpu.Memory, ModuleInfo.GetMusicAddress(), moduleLen);
 			return;
 		}
 #endif
@@ -425,8 +574,18 @@ public class ASAP
 			Do6502Init(player + 0x100, 0x00, 0x00, ModuleInfo.SongPos[CurrentSong]);
 			break;
 		case ASAPModuleType.Mpt:
+		case ASAPModuleType.Md1:
+		case ASAPModuleType.Md2:
 			Do6502Init(player, 0x00, music >> 8, music);
+			if (ModuleInfo.Type != ASAPModuleType.Mpt)
+				Do6502Init(player, 0x03, MptSamplesPage - 1, 0xe0);
 			Do6502Init(player, 0x02, ModuleInfo.SongPos[CurrentSong], 0);
+			if (ModuleInfo.Type == ASAPModuleType.Mpt)
+				break;
+			Cpu.Pc = player;
+			Cpu.A = ModuleInfo.Type == ASAPModuleType.Md1 ? 0x05 : 0x06;
+			Cpu.X = MptSamples15kHz ? 1 : 0;
+			Cpu.S = 0xff;
 			break;
 		case ASAPModuleType.Rmt:
 			Do6502Init(player, ModuleInfo.SongPos[CurrentSong], music, music >> 8);
@@ -439,6 +598,14 @@ public class ASAP
 			break;
 		case ASAPModuleType.Fc:
 			Do6502Init(player, CurrentSong, 0, 0);
+			break;
+		case ASAPModuleType.D15:
+			MptSamplesCurrentAddress = Cpu.Memory[ModuleInfo.GetMusicAddress() + CurrentSong] << 8;
+			MptSamplesSecondNibble = false;
+			// make 6502 idle
+			const int escapeAddr = 0xd200;
+			Cpu.Memory[escapeAddr] = 0xd2;
+			Cpu.Pc = escapeAddr;
 			break;
 #if EXPERIMENTAL_XEX
 		case ASAPModuleType.Xex:

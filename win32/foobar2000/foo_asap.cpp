@@ -1,7 +1,7 @@
 /*
  * foo_asap.cpp - ASAP plugin for foobar2000
  *
- * Copyright (C) 2006-2023  Piotr Fusik
+ * Copyright (C) 2006-2026  Piotr Fusik
  *
  * This file is part of ASAP (Another Slight Atari Player),
  * see https://asap.sourceforge.net
@@ -21,7 +21,7 @@
  * 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
  */
 
-#define _WINSOCKAPI_ /* prevents compilation errors */
+#define _WINSOCKAPI_ // prevents compilation errors
 #include <windows.h>
 #include <string.h>
 
@@ -30,14 +30,13 @@
 #include "info_dlg.h"
 #include "settings_dlg.h"
 
-#define UNICODE /* NOT for info_dlg.h */
 #include "foobar2000/SDK/foobar2000.h"
 #include "foobar2000/SDK/coreDarkMode.h"
 
 #define BITS_PER_SAMPLE    16
 #define BUFFERED_BLOCKS    1024
 
-/* Configuration --------------------------------------------------------- */
+// Configuration ---------------------------------------------------------
 
 static const GUID preferences_guid =
 	{ 0xf7c0a763, 0x7c20, 0x4b64, { 0x92, 0xbf, 0x11, 0xe5, 0x5d, 0x8, 0xe5, 0x53 } };
@@ -68,17 +67,43 @@ static cfg_bool playing_info_cfg(playing_info_guid, false);
 
 void onUpdatePlayingInfo()
 {
-	playing_info_cfg = playing_info != FALSE; /* avoid warning C4800 */
+	playing_info_cfg = playing_info;
 }
 
 
-/* Decoding -------------------------------------------------------------- */
+// Decoding --------------------------------------------------------------
 
-inline bool has_ext(const char *path, const char *ext)
+static bool has_ext(const char *path, const char *ext)
 {
 	size_t len = strlen(path);
 	return len >= 4 && _stricmp(path + len - 4, ext) == 0;
 }
+
+struct ASAPFileLoaderVtbl
+{
+	int (*load)(const ASAPFileLoader *self, const char *filename, uint8_t *buffer, int length);
+};
+
+struct ASAPFileLoader
+{
+	const ASAPFileLoaderVtbl *vtbl;
+	abort_callback &p_abort;
+	explicit ASAPFileLoader(abort_callback &p_abort);
+};
+
+static int ASAPFileLoader_Load(const ASAPFileLoader *self, const char *filename, uint8_t *buffer, int length)
+{
+	try {
+		foobar2000_io::file_ptr fp;
+		filesystem::g_open_read(fp, filename, self->p_abort);
+		return static_cast<int>(fp->read(buffer, length, self->p_abort));
+	} catch (pfc::exception &) {
+		return -1;
+	}
+}
+
+static const ASAPFileLoaderVtbl ASAPFileLoader_vtbl = { ASAPFileLoader_Load };
+ASAPFileLoader::ASAPFileLoader(abort_callback &p_abort) : vtbl(&ASAPFileLoader_vtbl), p_abort(p_abort) {}
 
 class input_asap : public input_stubs
 {
@@ -133,7 +158,7 @@ public:
 
 	static bool g_is_our_path(const char *p_path, const char *p_extension)
 	{
-		return ASAPInfo_IsOurFile(p_path) != 0;
+		return ASAPInfo_IsOurFile(p_path);
 	}
 
 	static GUID g_get_guid()
@@ -169,7 +194,7 @@ public:
 		case input_open_info_write:
 			if (!has_ext(p_path, ".sap"))
 				throw exception_io_unsupported_format();
-			/* FALLTHROUGH */
+			[[fallthrough]];
 		case input_open_decode:
 			free(url);
 			url = strdup(p_path);
@@ -178,10 +203,11 @@ public:
 			break;
 		}
 		if (p_filehint.is_empty())
-			filesystem::g_open(p_filehint, p_path, filesystem::open_mode_read, p_abort);
+			filesystem::g_open_read(p_filehint, p_path, p_abort);
 		m_file = p_filehint;
 		module_len = static_cast<int>(m_file->read(module, sizeof(module), p_abort));
-		if (!ASAP_Load(asap, p_path, module, module_len))
+		ASAPFileLoader loader { p_abort };
+		if (!ASAP_LoadWithExtraFiles(asap, p_path, module, module_len, &loader))
 			throw exception_io_unsupported_format();
 	}
 
@@ -269,16 +295,16 @@ public:
 		ASAPWriter *writer = ASAPWriter_New();
 		if (writer == nullptr)
 			throw exception_io_data();
-		BYTE output[ASAPInfo_MAX_MODULE_LENGTH];
-		ASAPWriter_SetOutput(writer, output, 0, sizeof(output));
-		int output_len = ASAPWriter_Write(writer, url, ASAP_GetInfo(asap), module, module_len, FALSE);
-		ASAPWriter_Delete(writer);
-		if (output_len < 0)
+		const uint8_t *output = ASAPWriter_WriteSap(writer, ASAP_GetInfo(asap), module, module_len);
+		if (output == nullptr) {
+			ASAPWriter_Delete(writer);
 			throw exception_io_unsupported_format();
+		}
 
 		m_file.release();
 		filesystem::g_open(m_file, url, filesystem::open_mode_write_new, p_abort);
-		m_file->write(output, output_len, p_abort);
+		m_file->write(output, ASAPWriter_GetOutputLength(writer), p_abort);
+		ASAPWriter_Delete(writer);
 	}
 
 	void remove_tags(abort_callback &p_abort)
@@ -291,7 +317,7 @@ public:
 static input_factory_t<input_asap> g_input_asap_factory;
 
 
-/* Configuration --------------------------------------------------------- */
+// Configuration ---------------------------------------------------------
 
 static preferences_page_callback::ptr g_callback;
 
@@ -304,11 +330,11 @@ static INT_PTR CALLBACK settings_dialog_proc(HWND hDlg, UINT uMsg, WPARAM wParam
 	case WM_COMMAND:
 		switch (wParam) {
 		case MAKEWPARAM(IDC_UNLIMITED, BN_CLICKED):
-			enableTimeInput(hDlg, FALSE);
+			enableTimeInput(hDlg, false);
 			g_callback->on_state_changed();
 			return TRUE;
 		case MAKEWPARAM(IDC_LIMITED, BN_CLICKED):
-			enableTimeInput(hDlg, TRUE);
+			enableTimeInput(hDlg, true);
 			setFocusAndSelect(hDlg, IDC_MINUTES);
 			g_callback->on_state_changed();
 			return TRUE;
@@ -463,7 +489,7 @@ public:
 static service_factory_single_t<preferences_page_asap> g_preferences_page_asap_factory;
 
 
-/* File types ------------------------------------------------------------ */
+// File types ------------------------------------------------------------
 
 class input_file_type_asap : public service_impl_single_t<input_file_type>
 {
@@ -471,11 +497,12 @@ class input_file_type_asap : public service_impl_single_t<input_file_type>
 		{ "Slight Atari Player", "*.SAP" },
 		{ "Chaos Music Composer", "*.CMC;*.CM3;*.CMR;*.CMS;*.DMC" },
 		{ "Delta Music Composer", "*.DLT" },
-		{ "Music ProTracker", "*.MPT;*.MPD" },
+		{ "Music ProTracker", "*.MPT;*.MD1;*.MD2;*.MPD" },
 		{ "Raster Music Tracker", "*.RMT" },
 		{ "Theta Music Composer 1.x", "*.TMC;*.TM8" },
 		{ "Theta Music Composer 2.x", "*.TM2" },
-		{ "Future Composer", "*.FC" }
+		{ "Future Composer", "*.FC" },
+		{ "Music ProTracker samples", "*.D15;*.D8" }
 	};
 
 public:
@@ -512,7 +539,7 @@ public:
 static service_factory_single_t<input_file_type_asap> g_input_file_type_asap_factory;
 
 
-/* Info window ----------------------------------------------------------- */
+// Info window -----------------------------------------------------------
 
 static std::unique_ptr<fb2k::CCoreDarkModeHooks> g_darkInfoDialog;
 
@@ -585,7 +612,7 @@ class info_menu : public mainmenu_commands
 static mainmenu_commands_factory_t<info_menu> g_info_menu_factory;
 
 
-/* ATR filesystem -------------------------------------------------------- */
+// ATR filesystem --------------------------------------------------------
 
 class file_atr : public file_readonly
 {

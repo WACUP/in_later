@@ -1,7 +1,7 @@
 /*
  * libxmms_asap.c - ASAP plugin for XMMS2
  *
- * Copyright (C) 2021  Piotr Fusik
+ * Copyright (C) 2021-2026  Piotr Fusik
  *
  * This file is part of ASAP (Another Slight Atari Player),
  * see http://asap.sourceforge.net
@@ -101,12 +101,25 @@ static gboolean xmms_asap_setup(xmms_xform_plugin_t *xform_plugin)
 
 	xmms_xform_plugin_methods_set(xform_plugin, &methods);
 	xmms_xform_plugin_indata_add(xform_plugin, XMMS_STREAM_TYPE_MIMETYPE, "application/x-sap", XMMS_STREAM_TYPE_END);
+	xmms_xform_plugin_indata_add(xform_plugin, XMMS_STREAM_TYPE_MIMETYPE, "application/x-fc", XMMS_STREAM_TYPE_END);
 	xmms_magic_add("SAP file", "application/x-sap", "0 string SAP", NULL);
+	xmms_magic_add("FC file", "application/x-fc", "0 string &#", NULL);
 	xmms_magic_extension_add("application/x-sap", "*.sap");
+	xmms_magic_extension_add("application/x-fc", "*.fc");
 	return true;
 }
 
+#ifdef XMMS_XFORM_PLUGIN_DEFINE
+// xmms2-devel 0.9.x
+#define XMMS_PLUGIN_DESC_SYMBOL_NAME XMMS_PLUGIN_DESC
+XMMS_XFORM_PLUGIN_DEFINE("asap",
+	"ASAP decoder", ASAPInfo_VERSION,
+	"Another Slight Atari Player decoder",
+	xmms_asap_setup);
+#else
+// xmms2-stable 0.8
 XMMS_XFORM_PLUGIN("asap",
 	"ASAP decoder", ASAPInfo_VERSION,
 	"Another Slight Atari Player decoder",
 	xmms_asap_setup);
+#endif

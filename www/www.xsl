@@ -14,28 +14,46 @@
 						<xsl:value-of select="@title" />
 					</xsl:if>
 				</title>
+				<meta name="viewport" content="initial-scale=1" />
 				<style>
-					html { background-color: #eee; color: #000; font-family: Georgia,"Times New Roman",Times,serif; padding: 0em 3em; }
-					h1, h2, h3, dt { color: #c22; }
-					a { color: #00c; }
-					nav ul { border-bottom: solid #ccc 1px; margin: 0px; padding: 0.5em 0em; }
+					html { background-color: #fff; color: #000; font-family: Segoe UI,Helvetica,Arial,sans-serif; }
+					img { max-width: 95%; height: auto; }
+					h1, h2, h3, dt, nav li.tab_selected { color: #c22; }
+					a, .menuToggle:hover, nav li a:hover { color: #00c; }
+					nav ul { padding: 0px; }
 					nav li { display: inline; }
-					nav li.tab_selected { background-color: #fff; border: solid #ccc 1px; border-bottom-color: #fff; padding: 0.5em; }
-					nav li a { padding: 0.5em; text-decoration: none; }
-					main { background-color: #fff; border: solid #ccc 1px; border-top-style: none; padding: 1em 3em 3em 3em; }
+					nav li a { padding: 0.5em; color: #999; text-decoration: none; }
+					nav li.tab_selected { padding: 0.5em; }
+					@media (max-width: 990px) {
+						.menuToggle { float: right; background-color: #c22; color: #fff; border: none; font-size: 2.5em; }
+						.collapsed { display: none; }
+						nav li { display: block; padding: 0.5em 0px; text-align: right; }
+					}
+					@media (min-width: 991px) {
+						html { padding: 0em 3em; }
+						.menuToggle { display: none; }
+					}
 					dt { margin-top: 1em; }
 					.author { color: #c22; padding-right: 1em; text-align: right; }
 					.rip { border: solid #000 1px; padding-left: 2px; padding-right: 2px; color: #000; }
 					pre { background-color: #eee; padding: 1ex; }
 				</style>
+				<script>
+					function toggleMenu()
+					{
+						const menu = document.getElementById("menu");
+						menu.className = menu.className == "collapsed" ? "" : "collapsed";
+					}
+				</script>
 				<xsl:apply-templates select="script" />
 			</head>
 			<body>
+				<input type="button" class="menuToggle" value="&#8801;" onclick="toggleMenu()" />
 				<header>
 					<h1>ASAP - Another Slight Atari Player</h1>
 				</header>
 				<nav>
-					<ul>
+					<ul id="menu" class="collapsed">
 						<xsl:call-template name="menu"><xsl:with-param name="page">Home</xsl:with-param></xsl:call-template>
 						<xsl:call-template name="menu"><xsl:with-param name="page">Android</xsl:with-param></xsl:call-template>
 						<xsl:call-template name="menu"><xsl:with-param name="page">Windows</xsl:with-param></xsl:call-template>

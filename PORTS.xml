@@ -218,7 +218,6 @@
 		<config-time>no</config-time>
 		<mute-pokey>no</mute-pokey>
 		<stil>no</stil>
-		<comment class="bad">SAP, FC, RMT formats only</comment>
 		<lang>C</lang>
 		<a href="https://www.videolan.org/vlc/">VLC</a>
 	</port>
@@ -236,9 +235,9 @@
 		<config-time>no</config-time>
 		<mute-pokey>no</mute-pokey>
 		<stil>no</stil>
-		<comment class="bad">SAP format only</comment>
+		<comment class="bad">SAP and FC formats only</comment>
 		<lang>C</lang>
-		<a href="http://www.xmms2.org/">XMMS2</a>
+		<a href="https://github.com/xmms2">XMMS2</a>
 	</port>
 	<port name="GSPlayer">
 		<bin></bin>

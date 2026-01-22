@@ -1,7 +1,7 @@
 /*
  * asapweb.js - pure JavaScript ASAP for web browsers
  *
- * Copyright (C) 2009-2023  Piotr Fusik
+ * Copyright (C) 2009-2025  Piotr Fusik
  *
  * This file is part of ASAP (Another Slight Atari Player),
  * see http://asap.sourceforge.net
@@ -23,6 +23,27 @@
 
 import { ASAP, ASAPSampleFormat } from "./asap.js";
 
+class ASAPFileBag
+{
+	files;
+
+	constructor(files)
+	{
+		this.files = files;
+	}
+
+	load(filename, buffer, length)
+	{
+		if (!this.files.hasOwnProperty(filename))
+			return -1;
+		const source = this.files[filename];
+		if (length > source.length)
+			length = source.length;
+		buffer.set(source);
+		return length;
+	}
+}
+
 export const asapWeb = {
 	stop()
 	{
@@ -36,7 +57,13 @@ export const asapWeb = {
 	{
 		const asap = new ASAP();
 		try {
-			asap.load(filename, content, content.length);
+			if (content instanceof Uint8Array)
+				asap.load(filename, content, content.length);
+			else {
+				const loader = new ASAPFileBag(content);
+				content = content[filename];
+				asap.loadWithExtraFiles(filename, content, content.length, loader);
+			}
 			const info = asap.getInfo();
 			if (song === undefined)
 				song = info.getDefaultSong();

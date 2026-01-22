@@ -1,7 +1,7 @@
 /*
  * xmp-asap.c - ASAP plugin for XMPlay
  *
- * Copyright (C) 2010-2024  Piotr Fusik
+ * Copyright (C) 2010-2025  Piotr Fusik
  *
  * This file is part of ASAP (Another Slight Atari Player),
  * see http://asap.sourceforge.net
@@ -158,10 +158,30 @@ static DWORD WINAPI ASAP_GetFileInfo(const char *filename, XMPFILE file, float *
 	return songs + XMPIN_INFO_NOSUBTAGS;
 }
 
+typedef struct {
+	int (*load)(const ASAPFileLoader *self, const char *filename, uint8_t *buffer, int length);
+} ASAPFileLoaderVtbl;
+
+struct ASAPFileLoader {
+	const ASAPFileLoaderVtbl *vtbl;
+};
+
+static int ASAPFileLoader_Load(const ASAPFileLoader *self, const char *filename, uint8_t *buffer, int length)
+{
+	XMPFILE file = xmpffile->Open(filename);
+	if (file == NULL)
+		return -1;
+	length = xmpffile->Read(file, buffer, length);
+	xmpffile->Close(file);
+	return length;
+}
+
 static DWORD WINAPI ASAP_Open(const char *filename, XMPFILE file)
 {
 	module_len = xmpffile->Read(file, module, sizeof(module));
-	if (!ASAP_Load(asap, filename, module, module_len))
+	static const ASAPFileLoaderVtbl loader_vtbl = { ASAPFileLoader_Load };
+	static const ASAPFileLoader loader = { &loader_vtbl };
+	if (!ASAP_LoadWithExtraFiles(asap, filename, module, module_len, &loader))
 		return 0;
 	setPlayingSong(filename, 0);
 	PlaySong(0);
@@ -196,7 +216,7 @@ static void WINAPI ASAP_GetGeneralInfo(char *buf)
 	const char *s = ASAPInfo_GetDate(info);
 	if (s[0] != '\0')
 		buf += sprintf(buf, "Date\t%s\r", s);
-	s = ASAPInfo_GetOriginalModuleExt(info, module, module_len);
+	s = ASAPInfo_GetOriginalModuleExt(info);
 	if (s != NULL)
 		buf += sprintf(buf, "Composed in\t%s\r", ASAPInfo_GetExtDescription(s));
 	*buf = '\0';
@@ -301,7 +321,7 @@ static void WINAPI ASAP_GetSamples(char *buf)
 		buf += sprintf(buf, "instrument list:\r\n");
 		do {
 			const char *s = (const char *) module + offset;
-			buf += sprintf(buf, "%03d\t%s\r\n", i, s);
+			buf += sprintf(buf, "%03d\t%s\r\n", ++i, s);
 			offset += strnlen(s, module_len - offset) + 1;
 		} while (offset < module_len);
 		buf[-2] = '\0'; /* chomp trailing \r\n */
@@ -330,7 +350,7 @@ __declspec(dllexport) XMPIN *WINAPI XMPIN_GetInterface(DWORD face, InterfaceProc
 	static XMPIN xmpin = {
 		0,
 		"ASAP",
-		"ASAP\0sap/cmc/cm3/cmr/cms/dmc/dlt/mpt/mpd/rmt/tmc/tm8/tm2/fc",
+		"ASAP\0sap/cmc/cm3/cmr/cms/dmc/dlt/mpt/md1/md2/mpd/rmt/tmc/tm8/tm2/fc",
 		ASAP_About,
 		ASAP_Config,
 		ASAP_CheckFile,

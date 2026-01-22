@@ -50,20 +50,18 @@ int main(int argc, char *argv[])
 	fclose(fp);
 	fputs(sap_filename, stdout);
 	int sap_sum = print_times(sap_info, sap_filename, sap, sap_len);
-	const char *native_ext = ASAPInfo_GetOriginalModuleExt(sap_info, sap, sap_len);
+	const char *native_ext = ASAPInfo_GetOriginalModuleExt(sap_info);
 	if (native_ext != NULL) {
 		ASAPWriter *writer = ASAPWriter_New();
 		printf("\t%s", native_ext);
 		char native_filename[FILENAME_MAX];
 		sprintf(native_filename, "%.*s.%s", (int) (strrchr(sap_filename, '.') - sap_filename), sap_filename, native_ext);
-		unsigned char native[ASAPInfo_MAX_MODULE_LENGTH];
-		ASAPWriter_SetOutput(writer, native, 0, sizeof(native));
-		int native_len = ASAPWriter_Write(writer, native_filename, sap_info, sap, sap_len, false);
-		ASAPWriter_Delete(writer);
-		if (native_len >= 0) {
-			int native_sum = print_times(native_info, native_filename, native, native_len);
+		const uint8_t * native = ASAPWriter_WriteNative(writer, sap_info, sap, sap_len);
+		if (native != NULL) {
+			int native_sum = print_times(native_info, native_filename, native, ASAPWriter_GetOutputLength(writer));
 			printf("\t%d", abs(native_sum - sap_sum) / 1000);
 		}
+		ASAPWriter_Delete(writer);
 	}
 	putchar('\n');
 	return 0;

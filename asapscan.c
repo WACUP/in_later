@@ -1,7 +1,7 @@
 /*
  * asapscan.c - Atari 8-bit music analyzer
  *
- * Copyright (C) 2007-2019  Piotr Fusik
+ * Copyright (C) 2007-2025  Piotr Fusik
  *
  * This file is part of ASAP (Another Slight Atari Player),
  * see http://asap.sourceforge.net
@@ -31,6 +31,7 @@
 #endif
 
 #include "asap-asapscan.h"
+#include "asap-stdio.h"
 
 static bool detect_time = false;
 static int scan_frames;
@@ -525,17 +526,9 @@ int main(int argc, char **argv)
 		print_help();
 		return 1;
 	}
-	FILE *fp = fopen(input_file, "rb");
-	if (fp == NULL) {
-		fprintf(stderr, "asapscan: cannot open %s\n", input_file);
-		return 1;
-	}
-	static unsigned char module[ASAPInfo_MAX_MODULE_LENGTH];
-	int module_len = fread(module, 1, sizeof(module), fp);
-	fclose(fp);
 	asap = ASAP_New();
-	if (!ASAP_Load(asap, input_file, module, module_len)) {
-		fprintf(stderr, "asapscan: %s: format not supported\n", input_file);
+	if (!ASAP_LoadFiles(asap, input_file, ASAPFileLoader_GetStdio())) {
+		fprintf(stderr, "asapscan: %s: cannot open\n", input_file);
 		return 1;
 	}
 	scan_frames = seconds_to_frames(scan_seconds);

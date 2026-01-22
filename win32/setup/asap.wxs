@@ -1,27 +1,35 @@
-<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs">
+﻿<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs">
+	<?define UPGRADE_GUID32=4250B3CB-D4A1-4486-828C-AC26A84D00D9?>
 	<?if $(sys.BUILDARCH) = x86?>
-		<?define PLATFORM_SUFFIX=""?>
-		<?define PLATFORM_BITS=32-bit?>
-		<?define UPGRADE_GUID=4250B3CB-D4A1-4486-828C-AC26A84D00D9?>
+		<?define UPGRADE_GUID=$(var.UPGRADE_GUID32)?>
 		<?define SRC_DIR=""?>
+		<?define FOO_COMP_DIR=user-components?>
 		<?define SHELL_EX_LEVEL=9?>
 	<?elseif $(sys.BUILDARCH) = x64?>
-		<?define PLATFORM_SUFFIX=" (64-bit)"?>
-		<?define PLATFORM_BITS=64-bit?>
 		<?define UPGRADE_GUID=205ADAB1-56A1-42B9-9789-FD20FCD1DF9B?>
 		<?define SRC_DIR=x64\?>
+		<?define FOO_COMP_DIR=user-components-x64?>
 		<?define SHELL_EX_LEVEL=1?>
 	<?endif?>
 
-	<Package Name="ASAP - Another Slight Atari Player $(var.VERSION)$(var.PLATFORM_SUFFIX)" Language="1033"
+	<Package Name="ASAP - Another Slight Atari Player $(var.VERSION)" Language="1033"
 		Version="$(var.VERSION)" Manufacturer="Piotr Fusik" UpgradeCode="$(var.UPGRADE_GUID)" InstallerVersion="200">
 		<MajorUpgrade DowngradeErrorMessage="Newer version of ASAP is already installed!" MigrateFeatures="yes" />
 		<Media Id="1" Cabinet="asap.cab" EmbedCab="yes" CompressionLevel="high" />
 
-		<?define EXT_FILTER=*.sap;*.cmc;*.cm3;*.cmr;*.cms;*.dmc;*.dlt;*.mpt;*.mpd;*.rmt;*.tmc;*.tm8;*.tm2;*.fc?>
-		<?define NATIVE_EXTS=cmc;cm3;cmr;cms;dmc;dlt;mpt;mpd;rmt;tmc;tm8;tm2;fc?>
+		<!-- inspired by TortoiseSVN.wxs -->
+		<?if $(sys.BUILDARCH) = x86?>
+			<Launch Condition="NOT Msix64" Message="You are attempting to run the 32-bit installer on a 64-bit version of Windows. This worked for previous versions of ASAP, but now the 64-bit installer is all you need." />
+		<?else?>
+			<Upgrade Id="$(var.UPGRADE_GUID32)">
+				<UpgradeVersion Minimum="0.0.0.0" OnlyDetect="yes" Property="WIN32ASAPFOUND" />
+			</Upgrade>
+			<Launch Condition="NOT WIN32ASAPFOUND" Message="Please uninstall the previous version of ASAP." />
+		<?endif?>
+
+		<?define NATIVE_EXTS=cmc;cm3;cmr;cms;dmc;dlt;mpt;md1;md2;mpd;rmt;tmc;tm8;tm2;fc?>
 		<?define ASAP_EXTS=sap;$(var.NATIVE_EXTS)?>
-		<?define DOUBLECLICK=Double-click SAP, CMC, CM3, CMR, CMS, DMC, DLT, MPT, MPD, RMT, TMC, TM8, TM2 or FC file in Windows Explorer to play it in?>
+		<?define DOUBLECLICK=Double-click SAP, CMC, CM3, CMR, CMS, DMC, DLT, MPT, MD1, MD2, MPD, RMT, TMC, TM8, TM2 or FC file in Windows Explorer to play it in?>
 
 		<Icon Id="wasap.ico" SourceFile="wasap/wasap.ico" />
 		<Property Id="ARPHELPLINK" Value="https://asap.sourceforge.net/" />
@@ -31,7 +39,7 @@
 		<WixVariable Id="WixUIBannerBmp" Value="asap-banner.jpg" />
 
 		<UI Id="MyWixUI_FeatureTree">
-			<!-- customized WixUI_FeatureTree from Wix 3.0 - my changes commented -->
+			<!-- customized WixUI_FeatureTree from Wix 6.0.1 - my changes commented -->
 			<TextStyle Id="WixUI_Font_Normal" FaceName="Tahoma" Size="8" />
 			<TextStyle Id="WixUI_Font_Bigger" FaceName="Tahoma" Size="12" />
 			<TextStyle Id="WixUI_Font_Title" FaceName="Tahoma" Size="9" Bold="yes" />
@@ -39,6 +47,7 @@
 			<Property Id="DefaultUIFont" Value="WixUI_Font_Normal" />
 			<Property Id="WixUI_Mode" Value="FeatureTree" />
 
+			<DialogRef Id="BrowseDlg" />
 			<DialogRef Id="ErrorDlg" />
 			<DialogRef Id="FatalError" />
 			<DialogRef Id="FilesInUse" />
@@ -58,6 +67,9 @@
 			<Publish Dialog="MyCustomizeDlg" Control="Back" Event="NewDialog" Value="MaintenanceTypeDlg" Order="1" Condition="Installed" />
 			<Publish Dialog="MyCustomizeDlg" Control="Back" Event="NewDialog" Value="MyLicenseAgreementDlg" Order="2" Condition="NOT Installed" />
 			<Publish Dialog="MyCustomizeDlg" Control="Next" Event="NewDialog" Value="VerifyReadyDlg" />
+
+			<Publish Dialog="BrowseDlg" Control="OK" Event="SetTargetPath" Value="[_BrowseProperty]" Order="3" />
+			<Publish Dialog="BrowseDlg" Control="OK" Event="EndDialog" Value="Return" Order="4" />
 
 			<Publish Dialog="VerifyReadyDlg" Control="Back" Event="NewDialog" Value="MyCustomizeDlg" Order="1" Condition="NOT Installed OR WixUI_InstallMode = &quot;Change&quot;" />
 			<Publish Dialog="VerifyReadyDlg" Control="Back" Event="NewDialog" Value="MaintenanceTypeDlg" Order="2" Condition="Installed" />
@@ -82,8 +94,8 @@
 					<Text SourceFile="!(wix.WixUILicenseRtf)" />
 				</Control>
 				<!-- removed the "Print" button -->
-				<Control Id="BannerLine" Type="Line" X="0" Y="44" Width="370" Height="0" />
-				<Control Id="BottomLine" Type="Line" X="0" Y="234" Width="370" Height="0" />
+				<Control Id="BannerLine" Type="Line" X="0" Y="44" Width="373" Height="0" />
+				<Control Id="BottomLine" Type="Line" X="0" Y="234" Width="373" Height="0" />
 				<Control Id="Description" Type="Text" X="25" Y="23" Width="340" Height="15" Transparent="yes" NoPrefix="yes" Text="!(loc.LicenseAgreementDlgDescription)" />
 				<Control Id="Title" Type="Text" X="15" Y="6" Width="200" Height="15" Transparent="yes" NoPrefix="yes" Text="!(loc.LicenseAgreementDlgTitle)" />
 			</Dialog>
@@ -104,8 +116,8 @@
 				</Control>
 				<Control Id="BannerBitmap" Type="Bitmap" X="0" Y="0" Width="370" Height="44" TabSkip="no" Text="!(loc.CustomizeDlgBannerBitmap)" />
 				<Control Id="Text" Type="Text" X="25" Y="55" Width="320" Height="20" Text="!(loc.CustomizeDlgText)" />
-				<Control Id="BannerLine" Type="Line" X="0" Y="44" Width="370" Height="0" />
-				<Control Id="BottomLine" Type="Line" X="0" Y="234" Width="370" Height="0" />
+				<Control Id="BannerLine" Type="Line" X="0" Y="44" Width="373" Height="0" />
+				<Control Id="BottomLine" Type="Line" X="0" Y="234" Width="373" Height="0" />
 				<Control Id="Description" Type="Text" X="25" Y="23" Width="280" Height="15" Transparent="yes" NoPrefix="yes" Text="!(loc.CustomizeDlgDescription)" />
 				<Control Id="Title" Type="Text" X="15" Y="6" Width="210" Height="15" Transparent="yes" NoPrefix="yes" Text="!(loc.CustomizeDlgTitle)" />
 				<Control Id="Box" Type="GroupBox" X="210" Y="71" Width="150" Height="128" />
@@ -124,7 +136,6 @@
 				</Control>
 			</Dialog>
 
-			<?if $(sys.BUILDARCH) = x86?>
 			<!-- handle mutually exclusive file associations, conditions generated with wix_mutex.pl -->
 			<?foreach MUTEXCOND in (($wasap.ext=3 OR ($wasap.ext=-1 AND ?wasap.ext=3)) AND ($in_asap.ext=3 OR ($in_asap.ext=-1 AND ?in_asap.ext=3) OR $foo_asap.ext=3 OR ($foo_asap.ext=-1 AND ?foo_asap.ext=3)));(($wasap.ext=3 OR ($wasap.ext=-1 AND ?wasap.ext=3)) AND ($xmp_asap.ext=3 OR ($xmp_asap.ext=-1 AND ?xmp_asap.ext=3) OR $aimp_asap.ext=3 OR ($aimp_asap.ext=-1 AND ?aimp_asap.ext=3)));(($wasap.ext=3 OR ($wasap.ext=-1 AND ?wasap.ext=3)) AND ($libasap_plugin.ext=3 OR ($libasap_plugin.ext=-1 AND ?libasap_plugin.ext=3)));(($in_asap.ext=3 OR ($in_asap.ext=-1 AND ?in_asap.ext=3)) AND ($foo_asap.ext=3 OR ($foo_asap.ext=-1 AND ?foo_asap.ext=3) OR $xmp_asap.ext=3 OR ($xmp_asap.ext=-1 AND ?xmp_asap.ext=3)));(($in_asap.ext=3 OR ($in_asap.ext=-1 AND ?in_asap.ext=3)) AND ($aimp_asap.ext=3 OR ($aimp_asap.ext=-1 AND ?aimp_asap.ext=3)));(($in_asap.ext=3 OR ($in_asap.ext=-1 AND ?in_asap.ext=3)) AND ($libasap_plugin.ext=3 OR ($libasap_plugin.ext=-1 AND ?libasap_plugin.ext=3)));(($foo_asap.ext=3 OR ($foo_asap.ext=-1 AND ?foo_asap.ext=3)) AND ($xmp_asap.ext=3 OR ($xmp_asap.ext=-1 AND ?xmp_asap.ext=3) OR $aimp_asap.ext=3 OR ($aimp_asap.ext=-1 AND ?aimp_asap.ext=3)));(($foo_asap.ext=3 OR ($foo_asap.ext=-1 AND ?foo_asap.ext=3)) AND ($libasap_plugin.ext=3 OR ($libasap_plugin.ext=-1 AND ?libasap_plugin.ext=3)));(($xmp_asap.ext=3 OR ($xmp_asap.ext=-1 AND ?xmp_asap.ext=3)) AND ($aimp_asap.ext=3 OR ($aimp_asap.ext=-1 AND ?aimp_asap.ext=3)));(($xmp_asap.ext=3 OR ($xmp_asap.ext=-1 AND ?xmp_asap.ext=3)) AND ($libasap_plugin.ext=3 OR ($libasap_plugin.ext=-1 AND ?libasap_plugin.ext=3)));(($aimp_asap.ext=3 OR ($aimp_asap.ext=-1 AND ?aimp_asap.ext=3)) AND ($libasap_plugin.ext=3 OR ($libasap_plugin.ext=-1 AND ?libasap_plugin.ext=3)))?>
 				<Publish Dialog="MyCustomizeDlg" Control="Next" Event="SpawnDialog" Value="MyManyAssociationsDlg" Order="3" Condition="$(var.MUTEXCOND)" />
@@ -136,13 +147,9 @@
 					<Publish Event="EndDialog" Value="Return" />
 				</Control>
 			</Dialog>
-			<?endif?>
 		</UI>
 		<UIRef Id="WixUI_Common" />
 
-		<Property Id="FOO.DIR">
-			<RegistrySearch Id="foo.installdir" Root="HKLM" Key="SOFTWARE\foobar2000" Name="InstallDir" Type="directory" />
-		</Property>
 		<Property Id="FOO.EXE">
 			<RegistrySearch Id="foo.exe" Root="HKLM" Key="SOFTWARE\foobar2000" Name="InstallDir" Type="directory">
 				<FileSearch Name="foobar2000.exe" />
@@ -164,8 +171,6 @@
 				<FileSearch Name="vlc.exe" />
 			</RegistrySearch>
 		</Property>
-
-		<?if $(sys.BUILDARCH) = x86?>
 		<Property Id="TSVN.VER">
 			<RegistrySearch Id="tsvn.ver" Root="HKCU" Key="SOFTWARE\TortoiseSVN" Name="CurrentVersion" Type="raw" />
 		</Property>
@@ -188,13 +193,33 @@
 				<FileSearch Name="winamp.exe" />
 			</RegistrySearch>
 		</Property>
-		<?endif?>
+
+		<StandardDirectory Id="AppDataFolder">
+			<Directory Name="foobar2000-v2">
+				<Directory Name="$(var.FOO_COMP_DIR)">
+					<Directory Id="FOO.DIR" Name="foo_asap">
+						<Component Id="foo_asap.dll">
+							<File Source="$(var.SRC_DIR)foo_asap.dll" Checksum="yes" KeyPath="yes" />
+						</Component>
+						<Component Id="foo_asap.ext">
+							<RegistryValue Root="HKCR" Key="asap.file" Name="foo_asap" Type="integer" Value="1" KeyPath="yes" />
+							<?foreach EXT in $(var.NATIVE_EXTS)?>
+								<ProgId Id="foobar2000.$(var.EXT)">
+									<Extension Id="$(var.EXT)">
+										<Verb Id="open" TargetProperty="FOO.EXE" Argument="&quot;%1&quot;" />
+									</Extension>
+								</ProgId>
+							<?endforeach?>
+						</Component>
+					</Directory>
+				</Directory>
+			</Directory>
+		</StandardDirectory>
 
 		<StandardDirectory Id="ProgramFiles6432Folder">
 			<Directory Id="ASAP.DIR" Name="ASAP">
-				<?if $(sys.BUILDARCH) = x86?>
 				<Component Id="wasap.exe">
-					<File Id="wasap.exe" Source="wasap.exe" Checksum="yes" KeyPath="yes" />
+					<File Id="wasap.exe" Source="$(var.SRC_DIR)wasap.exe" Checksum="yes" KeyPath="yes" />
 				</Component>
 				<Component Id="wasap.ext">
 					<RegistryValue Root="HKCR" Key="asap.file" Name="wasap" Type="integer" Value="1" KeyPath="yes" />
@@ -210,13 +235,12 @@
 				</Component>
 
 				<Component Id="asapconv.exe">
-					<File Source="asapconv.exe" Checksum="yes" KeyPath="yes" />
+					<File Source="$(var.SRC_DIR)asapconv.exe" Checksum="yes" KeyPath="yes" />
 				</Component>
 				<Component Id="path" Guid="D7247D41-0B9A-42D3-9847-06C37F88E2ED">
 					<Environment Id="path" Action="set" Name="Path" Part="last" Permanent="no" System="yes" Value="[ASAP.DIR]" />
 					<CreateFolder />
 				</Component>
-				<?endif?>
 
 				<Component Id="ASAPShellEx.dll">
 					<File Id="ASAPShellEx.dll" Source="$(var.SRC_DIR)ASAPShellEx.dll" Checksum="yes" KeyPath="yes">
@@ -231,24 +255,23 @@
 					<?foreach EXT in $(var.ASAP_EXTS)?>
 						<RegistryValue Root="HKLM" Key="Software\Microsoft\Windows\CurrentVersion\PropertySystem\PropertyHandlers\.$(var.EXT)" Value="{5AE26367-B5CF-444D-B163-2CBC99B41287}" Type="string" />
 						<RegistryValue Root="HKLM" Key="Software\Microsoft\Windows\CurrentVersion\Explorer\KindMap" Name=".$(var.EXT)" Value="music" Type="string" />
-						<RegistryValue Root="HKCR" Key=".$(var.EXT)" Name="InfoTip" Value="prop:System.ItemType;System.Size;System.Media.Duration" Type="string" />
-						<RegistryValue Root="HKCR" Key=".$(var.EXT)" Name="ExtendedTileInfo" Value="prop:System.ItemType;System.Size;System.Media.Duration" Type="string" />
-						<RegistryValue Root="HKCR" Key=".$(var.EXT)" Name="PreviewDetails" Value="prop:*System.Title;*System.Media.Duration;*System.Size;*System.Author;*System.Media.Year" Type="string" />
-						<RegistryValue Root="HKCR" Key=".$(var.EXT)" Name="PerceivedType" Value="audio" Type="string" />
+						<RegistryValue Root="HKCR" Key="SystemFileAssociations\.$(var.EXT)" Name="InfoTip" Value="prop:System.ItemType;System.Size;System.Media.Duration" Type="string" />
+						<RegistryValue Root="HKCR" Key="SystemFileAssociations\.$(var.EXT)" Name="ExtendedTileInfo" Value="prop:System.ItemType;System.Size;System.Media.Duration" Type="string" />
+						<RegistryValue Root="HKCR" Key="SystemFileAssociations\.$(var.EXT)" Name="PreviewDetails" Value="prop:*System.Title;*System.Media.Duration;*System.Size;*System.Author;*ASAP.Date" Type="string" />
+						<RegistryValue Root="HKCR" Key="SystemFileAssociations\.$(var.EXT)" Name="PerceivedType" Value="audio" Type="string" />
 					<?endforeach?>
 					<?define FULLDETAILS_COMMON=System.PropGroup.Audio;System.Media.Duration;System.Audio.ChannelCount;ASAP.Subsongs;ASAP.PALNTSC;System.PropGroup.FileSystem;System.ItemNameDisplay;System.ItemType;System.ItemFolderPathDisplay;System.Size;System.DateCreated;System.DateModified;System.FileAttributes?>
-					<RegistryValue Root="HKCR" Key=".sap" Name="FullDetails" Value="prop:System.PropGroup.Description;System.Author;System.Title;System.Media.Year;$(var.FULLDETAILS_COMMON)" Type="string" />
+					<RegistryValue Root="HKCR" Key="SystemFileAssociations\.sap" Name="FullDetails" Value="prop:System.PropGroup.Description;System.Author;System.Title;ASAP.Date;$(var.FULLDETAILS_COMMON)" Type="string" />
 					<?foreach EXT in rmt;tmc;tm8;tm2?>
-						<RegistryValue Root="HKCR" Key=".$(var.EXT)" Name="FullDetails" Value="prop:System.PropGroup.Description;System.Title;$(var.FULLDETAILS_COMMON)" Type="string" />
+						<RegistryValue Root="HKCR" Key="SystemFileAssociations\.$(var.EXT)" Name="FullDetails" Value="prop:System.PropGroup.Description;System.Title;$(var.FULLDETAILS_COMMON)" Type="string" />
 					<?endforeach?>
-					<?foreach EXT in cmc;cm3;cmr;cms;dmc;dlt;mpt;mpd;fc?>
-						<RegistryValue Root="HKCR" Key=".$(var.EXT)" Name="FullDetails" Value="prop:$(var.FULLDETAILS_COMMON)" Type="string" />
+					<?foreach EXT in cmc;cm3;cmr;cms;dmc;dlt;mpt;md1;md2;mpd;fc?>
+						<RegistryValue Root="HKCR" Key="SystemFileAssociations\.$(var.EXT)" Name="FullDetails" Value="prop:$(var.FULLDETAILS_COMMON)" Type="string" />
 					<?endforeach?>
 				</Component>
 
-				<?if $(sys.BUILDARCH) = x86?>
 				<Component Id="sap2txt.exe">
-					<File Source="sap2txt.exe" Checksum="yes" KeyPath="yes" />
+					<File Source="$(var.SRC_DIR)sap2txt.exe" Checksum="yes" KeyPath="yes" />
 				</Component>
 				<Component Id="diff_sap.js">
 					<File Id="diff_sap.js" Source="diff-sap.js" KeyPath="yes" />
@@ -259,26 +282,8 @@
 				<Component Id="diff_sap_tgit.reg">
 					<RegistryValue Root="HKCU" Key="Software\TortoiseGit\DiffTools" Name=".sap" Value="wscript.exe &quot;[#diff_sap.js]&quot; %base %mine %bname %yname //E:javascript" Type="string" KeyPath="yes" />
 				</Component>
-				<?endif?>
 			</Directory>
 
-			<Directory Id="FOO.DIR" Name="foobar2000">
-				<Directory Id="FOOCOMP.DIR" Name="components">
-					<Component Id="foo_asap.dll">
-						<File Source="$(var.SRC_DIR)foo_asap.dll" Checksum="yes" KeyPath="yes" />
-					</Component>
-					<Component Id="foo_asap.ext">
-						<RegistryValue Root="HKCR" Key="asap.file" Name="foo_asap" Type="integer" Value="1" KeyPath="yes" />
-						<?foreach EXT in $(var.NATIVE_EXTS)?>
-							<ProgId Id="foobar2000.$(var.EXT)">
-								<Extension Id="$(var.EXT)">
-									<Verb Id="open" TargetProperty="FOO.EXE" Argument="&quot;%1&quot;" />
-								</Extension>
-							</ProgId>
-						<?endforeach?>
-					</Component>
-				</Directory>
-			</Directory>
 			<Directory Id="AIMP.DIR" Name="AIMP">
 				<Directory Id="AIMPPLUG.DIR" Name="Plugins">
 					<Directory Id="AIMPASAP.DIR" Name="bass_asap">
@@ -310,20 +315,22 @@
 								<RegistryValue Root="HKCR" Key="asap.file" Name="vlc" Type="integer" Value="1" KeyPath="yes" />
 								<ProgId Id="VLC.sap">
 									<Extension Id="sap">
-										<Verb Id="open" TargetProperty="VLC.EXE" Argument="--started-from-file &quot;%1&quot;" />
+										<Verb Id="open" TargetProperty="VLC.EXE" Argument="--demux=asap --started-from-file &quot;%1&quot;" />
 									</Extension>
-									<Extension Id="fc" />
-									<Extension Id="rmt" />
+									<?foreach EXT in $(var.NATIVE_EXTS)?>
+										<Extension Id="$(var.EXT)" />
+									<?endforeach?>
 								</ProgId>
 							</Component>
 						</Directory>
 					</Directory>
 				</Directory>
 			</Directory>
+		</StandardDirectory>
 
-			<?if $(sys.BUILDARCH) = x86?>
+		<StandardDirectory Id="ProgramFilesFolder">
 			<Directory Id="XMPLAY.DIR" Name="XMPlay">
-				<Component Id="xmp_asap.dll">
+				<Component Id="xmp_asap.dll" Bitness="always32">
 					<File Source="xmp-asap.dll" Checksum="yes" KeyPath="yes" />
 				</Component>
 				<Component Id="xmp_asap.ext">
@@ -340,7 +347,7 @@
 			</Directory>
 			<Directory Id="WINAMP.DIR" Name="Winamp">
 				<Directory Id="WINAMPPLUG.DIR" Name="Plugins">
-					<Component Id="in_asap.dll">
+					<Component Id="in_asap.dll" Bitness="always32">
 						<File Source="in_asap.dll" Checksum="yes" KeyPath="yes" />
 					</Component>
 					<Component Id="in_asap.ext">
@@ -357,14 +364,12 @@
 				</Directory>
 			</Directory>
 			<Directory Id="RMT.DIR" Name="rmt128">
-				<Component Id="apokeysnd.dll">
+				<Component Id="apokeysnd.dll" Bitness="always32">
 					<File Source="apokeysnd.dll" Checksum="yes" KeyPath="yes" />
 				</Component>
 			</Directory>
-			<?endif?>
 		</StandardDirectory>
 
-		<?if $(sys.BUILDARCH) = x86?>
 		<StandardDirectory Id="ProgramMenuFolder">
 			<Component Id="WASAP.lnk">
 				<RegistryValue Root="HKCU" Key="Software\ASAP" Name="ProgramsMenuWASAP" Type="integer" Value="1" KeyPath="yes" />
@@ -377,17 +382,16 @@
 				<Shortcut Id="WASAP.desktop" Name="WASAP" Target="[#wasap.exe]" />
 			</Component>
 		</StandardDirectory>
-		<?endif?>
 
-		<Feature Id="foo_asap" Title="foobar2000 plugin" Level="9" ConfigurableDirectory="FOOCOMP.DIR" Description="Plugin for $(var.PLATFORM_BITS) foobar2000." AllowAdvertise="no">
-			<Level Value="1" Condition="FOO.DIR" />
+		<Feature Id="foo_asap" Title="foobar2000 plugin" Level="9" ConfigurableDirectory="FOO.DIR" Description="Plugin for foobar2000." AllowAdvertise="no">
+			<Level Value="1" Condition="FOO.EXE" />
 			<ComponentRef Id="foo_asap.dll" />
 			<Feature Id="foo_asap.ext" Title="Associate file types" Level="0" Description="$(var.DOUBLECLICK) foobar2000." AllowAdvertise="no">
 				<Level Value="9" Condition="FOO.EXE" />
 				<ComponentRef Id="foo_asap.ext" />
 			</Feature>
 		</Feature>
-		<Feature Id="aimp_asap" Title="AIMP $(var.PLATFORM_BITS) plugin" Level="9" ConfigurableDirectory="AIMPASAP.DIR" Description="Plugin for $(var.PLATFORM_BITS) AIMP." AllowAdvertise="no">
+		<Feature Id="aimp_asap" Title="AIMP plugin" Level="9" ConfigurableDirectory="AIMPASAP.DIR" Description="Plugin for AIMP." AllowAdvertise="no">
 			<Level Value="1" Condition="AIMP.DIR" />
 			<ComponentRef Id="bass_asap.dll" />
 			<Feature Id="aimp_asap.ext" Title="Associate file types" Level="0" Description="$(var.DOUBLECLICK) AIMP." AllowAdvertise="no">
@@ -395,8 +399,6 @@
 				<ComponentRef Id="aimp_asap.ext" />
 			</Feature>
 		</Feature>
-
-		<?if $(sys.BUILDARCH) = x86?>
 		<Feature Id="xmp_asap" Title="XMPlay plugin" Level="9" ConfigurableDirectory="XMPLAY.DIR" Description="Plugin for XMPlay." AllowAdvertise="no">
 			<Level Value="1" Condition="XMPLAY.DIR" />
 			<ComponentRef Id="xmp_asap.dll" />
@@ -416,24 +418,20 @@
 		<Feature Id="apokeysnd" Title="RMT sound emulator" Level="9" ConfigurableDirectory="RMT.DIR" Description="POKEY sound emulation engine for Raster Music Tracker." AllowAdvertise="no">
 			<ComponentRef Id="apokeysnd.dll" />
 		</Feature>
-		<?endif?>
-
-		<Feature Id="libasap_plugin" Title="VLC $(var.PLATFORM_BITS) plugin" Level="9" ConfigurableDirectory="VLC.DIR" Description="Plugin for $(var.PLATFORM_BITS) VLC 3 (SAP and FC formats only)." AllowAdvertise="no">
+		<Feature Id="libasap_plugin" Title="VLC plugin" Level="9" ConfigurableDirectory="VLC.DIR" Description="Plugin for VLC 3." AllowAdvertise="no">
 			<Level Value="1" Condition="VLC.DIR" />
 			<ComponentRef Id="libasap_plugin.dll" />
-			<Feature Id="libasap_plugin.ext" Title="Associate file types" Level="0" Description="Double-click SAP file in Windows Explorer to play it in VLC." AllowAdvertise="no">
+			<Feature Id="libasap_plugin.ext" Title="Associate file types" Level="0" Description="$(var.DOUBLECLICK) VLC." AllowAdvertise="no">
 				<Level Value="9" Condition="VLC.EXE" />
 				<ComponentRef Id="libasap_plugin.ext" />
 			</Feature>
 		</Feature>
-		<Feature Id="ASAPShellEx" Title="Windows Explorer $(var.PLATFORM_BITS) extension" Level="0" ConfigurableDirectory="ASAP.DIR" Description="Shows metadata (title, author, year, duration, subsongs) in $(var.PLATFORM_BITS) Windows Explorer." AllowAdvertise="no">
+		<Feature Id="ASAPShellEx" Title="Windows Explorer extension" Level="0" ConfigurableDirectory="ASAP.DIR" Description="Shows metadata (title, author, date, duration, subsongs) in Windows Explorer." AllowAdvertise="no">
 			<Level Value="$(var.SHELL_EX_LEVEL)" Condition="VersionNT &gt;= 600" />
 			<ComponentRef Id="ASAPShellEx.dll" />
 			<ComponentRef Id="ASAPShellEx.propdesc" />
 			<ComponentRef Id="ASAPShellExVista.reg" />
 		</Feature>
-
-		<?if $(sys.BUILDARCH) = x86?>
 		<Feature Id="wasap" Title="WASAP" Level="1" ConfigurableDirectory="ASAP.DIR" Description="Tiny player controlled by a tray icon." AllowAdvertise="no">
 			<ComponentRef Id="wasap.exe" />
 			<Feature Id="wasap.lnk" Title="Start menu shortcut" Level="1" Description="Adds WASAP to the Programs menu." AllowAdvertise="no">
@@ -464,7 +462,6 @@
 			<ComponentRef Id="diff_sap.js" />
 			<ComponentRef Id="diff_sap_tgit.reg" />
 		</Feature>
-		<?endif?>
 
 		<CustomAction Id="InstallPropertySchema" DllEntry="InstallPropertySchema" Execute="deferred" Impersonate="no" FileRef="ASAPShellEx.dll" />
 		<CustomAction Id="UninstallPropertySchema" DllEntry="UninstallPropertySchema" Execute="deferred" Impersonate="no" FileRef="ASAPShellEx.dll" />

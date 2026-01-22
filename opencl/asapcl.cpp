@@ -1,7 +1,7 @@
 /*
  * asapcl.cpp - converter of ASAP-supported formats to WAV files
  *
- * Copyright (C) 2021  Piotr Fusik
+ * Copyright (C) 2021-2025  Piotr Fusik
  *
  * This file is part of ASAP (Another Slight Atari Player),
  * see http://asap.sourceforge.net
@@ -75,10 +75,19 @@ int main(int argc, char **argv)
 	cl_program program = clCreateProgramWithSource(context, 1, &source, nullptr, &err);
 	check_error(err);
 
-	check_error(clBuildProgram(program, 1, &device, "-cl-std=CL2.0 -cl-opt-disable", nullptr, nullptr));
+	err = clBuildProgram(program, 1, &device, "-cl-std=CL2.0", nullptr, nullptr);
+	if (err == CL_BUILD_PROGRAM_FAILURE) {
+		check_error(clGetProgramBuildInfo(program, device, CL_PROGRAM_BUILD_LOG, 0, nullptr, &size));
+		char *log = static_cast<char *>(malloc(size));
+		check_error(clGetProgramBuildInfo(program, device, CL_PROGRAM_BUILD_LOG, size, log, nullptr));
+		fprintf(stderr, "OpenCL build error:\n%s", log);
+		free(log);
+		return 1;
+	}
+	check_error(err);
 
-	cl_kernel kernel;
-	check_error(clCreateKernelsInProgram(program, 1, &kernel, nullptr));
+	cl_kernel kernel = clCreateKernel(program, "asap2wav", &err);
+	check_error(err);
 
 	cl_command_queue queue = clCreateCommandQueueWithProperties(context, device, nullptr, &err);
 	check_error(err);
@@ -121,6 +130,7 @@ int main(int argc, char **argv)
 		int duration = ASAPInfo_GetDuration(info, song);
 		if (duration < 0)
 			duration = 180 * 1000;
+		fprintf(stderr, "Converting to %s\n", output_file);
 
 		cl_mem filename_buffer = clCreateBuffer(context, CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR | CL_MEM_HOST_NO_ACCESS, strlen(input_file) + 1, const_cast<char *>(input_file), &err);
 		check_error(err);

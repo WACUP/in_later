@@ -10,11 +10,11 @@ endif
 csharp: csharp/asap2wav.exe csharp/asapplay.exe
 .PHONY: csharp
 
-csharp/asap2wav.exe: $(srcdir)csharp/asap2wav.cs csharp/asap.cs
+csharp/asap2wav.exe: $(call src,csharp/asap2wav.cs csharp/filesystemloader.cs) csharp/asap.cs
 	$(CSC)
 CLEAN += csharp/asap2wav.exe
 
-csharp/asapplay.exe: $(srcdir)csharp/asapplay.cs csharp/asap.cs
+csharp/asapplay.exe: $(call src,csharp/asapplay.cs csharp/filesystemloader.cs) csharp/asap.cs
 	$(CSC)
 CLEAN += csharp/asapplay.exe
 

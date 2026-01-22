@@ -1,7 +1,7 @@
 /*
  * asapconv.c - converter of ASAP-supported formats
  *
- * Copyright (C) 2005-2022  Piotr Fusik
+ * Copyright (C) 2005-2026  Piotr Fusik
  *
  * This file is part of ASAP (Another Slight Atari Player),
  * see http://asap.sourceforge.net
@@ -23,6 +23,7 @@
 
 #include <stdarg.h>
 #include <stdbool.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -44,6 +45,7 @@
 #endif
 
 #include "asap.h"
+#include "asap-stdio.h"
 
 /* parsed command line */
 static const char *arg_output = NULL;
@@ -67,7 +69,8 @@ static void print_help(void)
 	printf(
 		"Usage: asapconv [OPTIONS] INPUTFILE...\n"
 		"Each INPUTFILE must be in a supported format:\n"
-		"SAP, CMC, CM3, CMR, CMS, DMC, DLT, MPT, MPD, RMT, TMC, TM8, TM2 or FC.\n"
+		"SAP, CMC, CM3, CMR, CMS, DMC, DLT, MPT, MD1, MD2, MPD,\n"
+		"RMT, TMC, TM8, TM2, FC, D15 or D8.\n"
 		"Output EXT must be one of the above or XEX, " SAMPLE_FORMATS ".\n"
 		"Options:\n"
 		"-o FILE.EXT --output=FILE.EXT  Write to the specified file\n"
@@ -167,7 +170,7 @@ static void set_music_address(const char *s)
 	arg_music_address = parse_int(s, 16, "music address", 0xffff);
 }
 
-static void apply_tags(const char *input_file, ASAPInfo *info)
+static void apply_tags(ASAPInfo *info)
 {
 	if (arg_author != NULL) {
 		if (!ASAPInfo_SetAuthor(info, arg_author))
@@ -184,23 +187,22 @@ static void apply_tags(const char *input_file, ASAPInfo *info)
 	}
 }
 
-static ASAP *load_module(const char *input_file, const unsigned char *module, int module_len)
+static ASAP *load_module(const char *input_file)
 {
 	ASAP *asap = ASAP_New();
 	if (asap == NULL)
 		fatal_error("out of memory");
 	ASAP_SetSampleRate(asap, arg_sample_rate);
-	if (!ASAP_Load(asap, input_file, module, module_len))
-		fatal_error("%s: unsupported file", input_file);
+	if (!ASAP_LoadFiles(asap, input_file, ASAPFileLoader_GetStdio()))
+		fatal_error("%s: cannot open", input_file);
 	ASAPInfo *info = (ASAPInfo *) ASAP_GetInfo(asap); /* FIXME: avoid cast */
-	apply_tags(input_file, info);
+	apply_tags(info);
 	return asap;
 }
 
-static FILE *open_output_file(const char *input_file, const unsigned char *module, int module_len, const ASAPInfo *info, bool allow_file_per_song)
+static bool get_output_file(const char *input_file, const ASAPInfo *info, bool allow_file_per_song)
 {
 	const char *output_ext = strrchr(arg_output, '.');
-	FILE *fp = NULL;
 	if (output_ext == arg_output) {
 		/* .EXT */
 	}
@@ -212,13 +214,6 @@ static FILE *open_output_file(const char *input_file, const unsigned char *modul
 	}
 	else {
 		/* FILE.EXT or -.EXT */
-		if (output_ext == arg_output + 1 && arg_output[0] == '-') {
-			/* -.EXT */
-#ifdef _WIN32
-			_setmode(_fileno(stdout), _O_BINARY);
-#endif
-			fp = stdout;
-		}
 		output_ext = NULL; /* don't insert input_file */
 	}
 
@@ -249,7 +244,7 @@ static FILE *open_output_file(const char *input_file, const unsigned char *modul
 				tag = ASAPInfo_GetDate(info);
 				break;
 			case 'e':
-				tag = ASAPInfo_GetOriginalModuleExt(info, module, module_len);
+				tag = ASAPInfo_GetOriginalModuleExt(info);
 				if (tag == NULL)
 					tag = "unknown";
 				break;
@@ -260,7 +255,7 @@ static FILE *open_output_file(const char *input_file, const unsigned char *modul
 					if (arg_song >= 0)
 						fatal_error("-s and %%s are mutually exclusive");
 					if (++current_song >= ASAPInfo_GetSongs(info))
-						return NULL;
+						return false;
 					file_per_song = true;
 				}
 				sprintf(song_tag, "%d", current_song + 1);
@@ -271,7 +266,7 @@ static FILE *open_output_file(const char *input_file, const unsigned char *modul
 				break;
 			default:
 				fatal_error("unrecognized %%%c", c);
-				return NULL;
+				return false;
 			}
 			while (*tag != '\0') {
 				if (output_ptr >= output_file + sizeof(output_file) - 1)
@@ -304,7 +299,7 @@ static FILE *open_output_file(const char *input_file, const unsigned char *modul
 
 	if (!file_per_song) {
 		if (current_song >= 0)
-			return NULL;
+			return false;
 		if (arg_song < 0)
 			current_song = ASAPInfo_GetDefaultSong(info);
 		else if (arg_song >= ASAPInfo_GetSongs(info)) {
@@ -315,13 +310,27 @@ static FILE *open_output_file(const char *input_file, const unsigned char *modul
 		else
 			current_song = arg_song;
 	}
+	return true;
+}
 
-	if (fp == NULL) {
-		fp = fopen(output_file, "wb");
-		if (fp == NULL)
-			fatal_error("cannot write %s", output_file);
+static FILE *create_file(const char *filename)
+{
+	if (arg_output[0] == '-' && arg_output[1] == '.') {
+		/* -.EXT */
+#ifdef _WIN32
+		_setmode(_fileno(stdout), _O_BINARY);
+#endif
+		return stdout;
 	}
+	FILE *fp = fopen(filename, "wb");
+	if (fp == NULL)
+		fatal_error("%s: cannot write", filename);
 	return fp;
+}
+
+static FILE *open_output_file(const char *input_file, const ASAPInfo *info, bool allow_file_per_song)
+{
+	return get_output_file(input_file, info, allow_file_per_song) ? create_file(output_file) : NULL;
 }
 
 static int play_song(const char *input_file, ASAP *asap)
@@ -338,31 +347,29 @@ static int play_song(const char *input_file, ASAP *asap)
 	return duration;
 }
 
-static void write_output_file(FILE *fp, unsigned char *buffer, int n_bytes)
+static void write_output_file(FILE *fp, const uint8_t *buffer, int n_bytes)
 {
 	if (fwrite(buffer, 1, n_bytes, fp) != n_bytes) {
 		if (fp != stdout)
 			fclose(fp);
-		fatal_error("error writing to %s", output_file);
+		fatal_error("%s: error writing", output_file);
 	}
 }
 
 static void close_output_file(FILE *fp)
 {
-	if (fp != stdout) {
-		if (fclose(fp) != 0)
-			fatal_error("error closing %s", output_file);
-	}
+	if (fp != stdout && fclose(fp) != 0)
+		fatal_error("error closing %s", output_file);
 }
 
-static void convert_to_wav(const char *input_file, const unsigned char *module, int module_len, bool output_header)
+static void convert_to_wav(const char *input_file, bool output_header)
 {
-	ASAP *asap = load_module(input_file, module, module_len);
+	ASAP *asap = load_module(input_file);
 	FILE *fp;
 
-	while ((fp = open_output_file(input_file, module, module_len, ASAP_GetInfo(asap), true)) != NULL) {
+	while ((fp = open_output_file(input_file, ASAP_GetInfo(asap), true)) != NULL) {
 		play_song(input_file, asap);
-		unsigned char buffer[8192];
+		uint8_t buffer[8192];
 		int n_bytes;
 		if (output_header) {
 			n_bytes = ASAP_GetWavHeader(asap, buffer, arg_sample_format, arg_tag);
@@ -390,8 +397,8 @@ typedef int (*plame_set_num_samples)(lame_global_flags *, unsigned long);
 typedef int (*plame_set_in_samplerate)(lame_global_flags *, int);
 typedef int (*plame_set_num_channels)(lame_global_flags *, int);
 typedef int (*plame_init_params)(lame_global_flags *);
-typedef int (*plame_encode_buffer_interleaved)(lame_global_flags *, short int[], int, unsigned char *, int);
-typedef int (*plame_encode_flush)(lame_global_flags *, unsigned char *, int);
+typedef int (*plame_encode_buffer_interleaved)(lame_global_flags *, short int[], int, uint8_t *, int);
+typedef int (*plame_encode_flush)(lame_global_flags *, uint8_t *, int);
 typedef int (*plame_close)(lame_global_flags *);
 typedef int (*pid3tag_init)(lame_global_flags *);
 typedef int (*pid3tag_set_title)(lame_global_flags *, const char *);
@@ -427,9 +434,9 @@ static FARPROC lame_proc(HMODULE lame_dll, const char *name)
 
 #endif
 
-static void convert_to_mp3(const char *input_file, const unsigned char *module, int module_len)
+static void convert_to_mp3(const char *input_file)
 {
-	ASAP *asap = load_module(input_file, module, module_len);
+	ASAP *asap = load_module(input_file);
 	const ASAPInfo *info = ASAP_GetInfo(asap);
 	int channels = ASAPInfo_GetChannels(info);
 
@@ -446,7 +453,7 @@ static void convert_to_mp3(const char *input_file, const unsigned char *module, 
 #endif
 
 	FILE *fp;
-	while ((fp = open_output_file(input_file, module, module_len, info, true)) != NULL) {
+	while ((fp = open_output_file(input_file, info, true)) != NULL) {
 		int duration = play_song(input_file, asap);
 		lame_global_flags *lame = lame_init();
 		if (lame == NULL)
@@ -482,9 +489,9 @@ static void convert_to_mp3(const char *input_file, const unsigned char *module, 
 			id3tag_set_genre(lame, "Electronic");
 		}
 
-		unsigned char buffer[8192];
+		uint8_t buffer[8192];
 		int n_bytes;
-		unsigned char mp3buf[4096 * 5 / 4 + 7200]; /* it would be possible to reuse "buffer" instead */
+		uint8_t mp3buf[4096 * 5 / 4 + 7200]; /* it would be possible to reuse "buffer" instead */
 		int mp3_bytes;
 
 		do {
@@ -515,12 +522,109 @@ static void convert_to_mp3(const char *input_file, const unsigned char *module, 
 
 #endif /* HAVE_LIBMP3LAME */
 
-static void convert_to_module(const char *input_file, const unsigned char *module, int module_len, bool output_xex)
+static int read_one_sample(FILE *fp, bool is_16bit, const char *wav_file)
 {
-	const char *input_ext = strrchr(input_file, '.');
-	if (input_ext == NULL)
-		fatal_error("%s: missing extension", input_file);
-	input_ext++;
+	if (is_16bit)
+		getc(fp);
+	int sample = getc(fp);
+	if (sample < 0)
+		fatal_error("%s: error reading", wav_file);
+	if (is_16bit)
+		sample ^= 0x80;
+	sample += 8;
+	return sample >= 0x100 ? 0xf : sample >> 4;
+}
+
+static void convert_to_d15(const char *input_file, bool output_d8)
+{
+	int input_len = (int) strlen(input_file) - 5;
+	if (input_len < 0 || strcmp(input_file + input_len, "0.wav") != 0)
+		fatal_error("%s: filename must end in 0.wav", input_file);
+
+	uint8_t samples[32 + 12 * 1024];
+	memset(samples, 0, 32);
+	int samples_len = 0;
+	for (int sample = 0; sample < 16; sample++) {
+		// open WAV file
+		char wav_file[FILENAME_MAX];
+		if (snprintf(wav_file, sizeof(wav_file), "%.*s%x.wav", input_len, input_file, sample) >= FILENAME_MAX)
+			fatal_error("%s: input filename too long", input_file);
+		FILE *fp = fopen(wav_file, "rb");
+		if (fp == NULL) {
+			if (sample == 0)
+				fatal_error("%s: cannot open", wav_file);
+			break;
+		}
+
+		// check WAV header
+		uint8_t wav_header[44];
+		if (fread(wav_header, 44, 1, fp) != 1)
+			fatal_error("%s: error reading header", wav_file);
+		if (memcmp(wav_header, "RIFF", 4) != 0 || memcmp(wav_header + 8, "WAVEfmt \x10\0\0", 12) != 0
+		 || wav_header[33] != 0 || wav_header[35] != 0
+		 || memcmp(wav_header + 36, "data", 4) != 0)
+			fatal_error("%s: not a WAV file", wav_file);
+		if (memcmp(wav_header + 20, "\1\0\1\0", 4) != 0)
+			fatal_error("%s: not a mono PCM file", wav_file);
+		uint8_t block_size = wav_header[32];
+		if (block_size < 1 || block_size > 2 || wav_header[34] != 4 << block_size)
+			fatal_error("%s: not 8-bit or 16-bit", wav_file);
+		uint32_t wav_rate = wav_header[24] | wav_header[25] << 8 | wav_header[26] << 16 | wav_header[27] << 24;
+		if (wav_rate < 14200 >> output_d8 || wav_rate > 15556 >> output_d8)
+			fatal_error("%s: invalid sample rate, should be %d\n", wav_file, 15000 >> output_d8);
+		uint32_t wav_len = wav_header[40] | wav_header[41] << 8 | wav_header[42] << 16 | wav_header[43] << 24;
+		wav_len /= block_size;
+
+		// convert
+		static const int start_page = 0x90;
+		samples[sample] = start_page + (samples_len >> 8);
+		int read_len = samples_len;
+		for (uint32_t block = 0; block < wav_len; block += 2) {
+			int hi = read_one_sample(fp, block_size == 2, wav_file);
+			int lo = block + 1 < wav_len ? read_one_sample(fp, block_size == 2, wav_file) : hi;
+			uint8_t b = hi << 4 | lo;
+			if (b != 0x88) {
+				if (read_len >= 12 * 1024)
+					fatal_error("%s: samples too long", wav_file);
+				memset(samples + 32 + samples_len, 0x88, read_len - samples_len);
+				samples_len = read_len;
+				samples[32 + samples_len++] = b;
+			}
+			read_len++;
+		}
+		fclose(fp);
+		int padding_len = -samples_len & 0xff;
+		memset(samples + 32 + samples_len, 0x88, padding_len);
+		samples_len += padding_len;
+		samples[16 + sample] = start_page + (samples_len >> 8);
+	}
+
+	// write result file
+	FILE *fp = create_file(arg_output);
+	write_output_file(fp, samples, 32 + samples_len);
+	close_output_file(fp);
+}
+
+typedef struct {
+	bool (*save)(ASAPWriter *self, const char *filename, const uint8_t *buffer, int offset, int length);
+} ASAPWriterVtbl;
+
+static bool ASAPWriter_Save(ASAPWriter *self, const char *filename, const uint8_t *buffer, int offset, int length)
+{
+	FILE *fp = create_file(filename);
+	write_output_file(fp, buffer + offset, length);
+	close_output_file(fp);
+	return true;
+}
+
+static void convert_to_module(const char *input_file, bool output_xex)
+{
+	FILE *fp = fopen(input_file, "rb");
+	if (fp == NULL)
+		fatal_error("%s: cannot open", input_file);
+	static uint8_t module[ASAPInfo_MAX_MODULE_LENGTH];
+	int module_len = fread(module, 1, sizeof(module), fp);
+	fclose(fp);
 	ASAPInfo *info = ASAPInfo_New();
 	if (info == NULL)
 		fatal_error("out of memory");
@@ -529,7 +633,10 @@ static void convert_to_module(const char *input_file, const unsigned char *modul
 	ASAPWriter *writer = ASAPWriter_New();
 	if (writer == NULL)
 		fatal_error("out of memory");
-	apply_tags(input_file, info);
+	static const ASAPWriterVtbl writer_vtbl = { ASAPWriter_Save };
+	*(const ASAPWriterVtbl **) writer = &writer_vtbl;
+	ASAPWriter_SetInput(writer, input_file, ASAPFileLoader_GetStdio());
+	apply_tags(info);
 	if (arg_ntsc >= 0) {
 		if (!ASAPInfo_CanSetNtsc(info))
 			fatal_error("%s: cannot modify NTSC tag", input_file);
@@ -538,19 +645,13 @@ static void convert_to_module(const char *input_file, const unsigned char *modul
 	if (arg_music_address >= 0)
 		ASAPInfo_SetMusicAddress(info, arg_music_address);
 
-	FILE *fp;
-	while ((fp = open_output_file(input_file, module, module_len, info, output_xex)) != NULL) {
+	while (get_output_file(input_file, info, output_xex)) {
 		if (output_xex)
 			ASAPInfo_SetDefaultSong(info, current_song);
 		if (arg_duration >= 0)
 			ASAPInfo_SetDuration(info, current_song, arg_duration);
-		unsigned char output[ASAPInfo_MAX_MODULE_LENGTH];
-		ASAPWriter_SetOutput(writer, output, 0, sizeof(output));
-		int output_len = ASAPWriter_Write(writer, output_file, info, module, module_len, arg_tag);
-		if (output_len < 0)
+		if (!ASAPWriter_Write(writer, output_file, info, module, module_len, arg_tag))
 			fatal_error("%s: conversion error", input_file);
-		write_output_file(fp, output, output_len);
-		close_output_file(fp);
 	}
 
 	ASAPWriter_Delete(writer);
@@ -561,31 +662,28 @@ static void process_file(const char *input_file)
 {
 	if (arg_output == NULL)
 		fatal_error("the -o/--output option is mandatory");
-	FILE *fp = fopen(input_file, "rb");
-	if (fp == NULL)
-		fatal_error("cannot open %s", input_file);
-	static unsigned char module[ASAPInfo_MAX_MODULE_LENGTH];
-	int module_len = fread(module, 1, sizeof(module), fp);
-	fclose(fp);
-
 	const char *output_ext = strrchr(arg_output, '.');
 	if (output_ext == NULL)
 		fatal_error("missing .EXT in -o/--output");
 	output_ext++;
 	current_song = -1;
 	if (strcasecmp(output_ext, "wav") == 0)
-		convert_to_wav(input_file, module, module_len, true);
+		convert_to_wav(input_file, true);
 	else if (strcasecmp(output_ext, "raw") == 0)
-		convert_to_wav(input_file, module, module_len, false);
+		convert_to_wav(input_file, false);
 	else if (strcasecmp(output_ext, "mp3") == 0) {
 #ifdef HAVE_LIBMP3LAME
-		convert_to_mp3(input_file, module, module_len);
+		convert_to_mp3(input_file);
 #else
 		fatal_error("this build of asapconv doesn't support MP3");
 #endif
 	}
+	else if (strcasecmp(output_ext, "d15") == 0)
+		convert_to_d15(input_file, false);
+	else if (strcasecmp(output_ext, "d8") == 0)
+		convert_to_d15(input_file, true);
 	else
-		convert_to_module(input_file, module, module_len, strcasecmp(output_ext, "xex") == 0);
+		convert_to_module(input_file, strcasecmp(output_ext, "xex") == 0);
 }
 
 int main(int argc, char *argv[])

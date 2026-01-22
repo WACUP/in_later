@@ -4,13 +4,23 @@
 //
 #define ASAPInfo_VERSION_MINOR          0
 #define IDS_ABOUT_TITLE                 0
-#define ASAPInfo_VERSION_MICRO          3
+#define ASAPInfo_VERSION_MICRO          0
 #define ASAPWriter_MAX_SAVE_EXTS        3
-#define ASAPInfo_VERSION_MAJOR          6
+#define ASAPInfo_VERSION_MAJOR          7
 #define ASAPWriter_MAX_DURATION_LENGTH  9
-#define ASAPInfo_VERSION_PATCH          19
 #define ASAPInfo_MAX_SONGS              32
 #define ASAPInfo_MAX_TEXT_LENGTH        127
+#define IDD_SETTINGS                    400
+#define IDC_SAMPLERATE                  401
+#define IDC_UNLIMITED                   402
+#define IDC_LIMITED                     403
+#define IDC_MINUTES                     404
+#define IDC_SECONDS                     405
+#define IDC_SILENCE                     406
+#define IDC_SILSECONDS                  407
+#define IDC_LOOPS                       408
+#define IDC_NOLOOPS                     409
+#define IDC_MUTE1                       411
 #define ASAP_SAMPLE_RATE                44100
 #define ASAPInfo_MAX_MODULE_LENGTH      65000
 #define IDS_PLUGIN_NAME                 65534

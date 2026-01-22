@@ -1,11 +1,12 @@
 ﻿<page title="Web">
 	<script type="module">
 		import { asapWeb } from "./asapweb.js";
-		function openFiles()
+		import { ASAPInfo } from "./asap.js";
+		let asapFiles;
+		function populateFiles(contents, mainFilenames)
 		{
-			const files = this.files;
 			const select = document.getElementById("fileSelect");
-			switch (files.length) {
+			switch (mainFilenames.length) {
 			case 0:
 				alert("No supported file selected");
 				return;
@@ -14,14 +15,33 @@
 				break;
 			default:
 				select.innerHTML = "";
-				for (const file of files)
-					select.add(new Option(file.name));
+				for (const name of mainFilenames)
+					select.add(new Option(name));
 				select.style.display = "";
 				break;
 			}
+			asapFiles = contents;
 			document.getElementById("pauseButton").style.display = "";
 			asapWeb.onUpdate = update;
-			asapWeb.playFile(files[0]);
+			asapWeb.playContent(mainFilenames[0], contents);
+		}
+		function openFiles()
+		{
+			const files = this.files;
+			const mainFilenames = [];
+			const contents = {};
+			let count = files.length;
+			for (const file of files) {
+				if (ASAPInfo.isOurFile(file.name))
+					mainFilenames.push(file.name);
+				const reader = new FileReader();
+				reader.onload = e => {
+					contents[file.name] = new Uint8Array(e.target.result);
+					if (--count == 0)
+						populateFiles(contents, mainFilenames);
+				};
+				reader.readAsArrayBuffer(file);
+			}
 		}
 		function update()
 		{
@@ -33,7 +53,7 @@
 		}
 		function selectFile()
 		{
-			asapWeb.playFile(document.getElementById("fileInput").files[this.selectedIndex]);
+			asapWeb.playContent(this.value, asapFiles);
 		}
 		document.getElementById("fileInput").addEventListener("change", openFiles);
 		document.getElementById("fileSelect").addEventListener("change", selectFile);
@@ -43,7 +63,7 @@
 	<p>Play your local Atari 8-bit chiptunes on this page.
 	Select one or more files from your device. The files will <em>not</em> be uploaded, but played right in your browser using JavaScript.</p>
 	<p>Select file(s):
-		<input id="fileInput" type="file" multiple="multiple" accept=".sap,.cmc,.cm3,.cmr,.cms,.dmc,.dlt,.mpt,.mpd,.rmt,.tmc,.tm8,.tm2,.fc" />
+		<input id="fileInput" type="file" multiple="multiple" accept=".sap,.cmc,.cm3,.cmr,.cms,.dmc,.dlt,.mpt,.md1,.md2,.d15,.d8,.mpd,.rmt,.tmc,.tm8,.tm2,.fc" />
 		<select id="fileSelect" style="display: none"> </select>
 		<input id="pauseButton" type="button" value="Pause" style="display: none" />
 		<input id="seekBar" type="range" style="display: none" />

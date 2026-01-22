@@ -1,7 +1,7 @@
 /*
  * libasap_plugin.c - ASAP plugin for VLC
  *
- * Copyright (C) 2012-2019  Piotr Fusik
+ * Copyright (C) 2012-2025  Piotr Fusik
  *
  * This file is part of ASAP (Another Slight Atari Player),
  * see http://asap.sourceforge.net
@@ -163,6 +163,29 @@ static int Control(demux_t *demux, int query, va_list args)
 	}
 }
 
+#ifdef vlc_stream_NewURL /* VLC 3.0+ */
+
+typedef struct {
+	int (*load)(const ASAPFileLoader *self, const char *filename, uint8_t *buffer, int length);
+} ASAPFileLoaderVtbl;
+
+struct ASAPFileLoader {
+	const ASAPFileLoaderVtbl *vtbl;
+	vlc_object_t *obj;
+};
+
+static int loader_load(const ASAPFileLoader *self, const char *filename, uint8_t *buffer, int length)
+{
+	stream_t *s = vlc_stream_NewURL(self->obj, filename);
+	if (s == NULL)
+		return -1;
+	length = (int) vlc_stream_Read(s, buffer, length);
+	vlc_stream_Delete(s);
+	return length;
+}
+
+#endif
+
 static int Open(vlc_object_t *obj)
 {
 	demux_t *demux = (demux_t *) obj;
@@ -175,7 +198,7 @@ static int Open(vlc_object_t *obj)
 	if (unlikely(module == NULL))
 		return VLC_ENOMEM;
 	if (
-#ifdef vlc_stream_MemoryNew /* VLC 3.0+ */
+#ifdef vlc_stream_NewURL /* VLC 3.0+ */
 		vlc_stream_Read
 #else
 		stream_Read
@@ -197,7 +220,14 @@ static int Open(vlc_object_t *obj)
 		free(module);
 		return VLC_ENOMEM;
 	}
-	if (!ASAP_Load(sys->asap, NULL, module, module_len)) {
+#ifdef vlc_stream_NewURL /* VLC 3.0+ */
+	static const ASAPFileLoaderVtbl loader_vtbl = { loader_load };
+	const ASAPFileLoader loader = { &loader_vtbl, obj };
+	if (!ASAP_LoadWithExtraFiles(sys->asap, demux->s->psz_url, module, module_len, &loader))
+#else
+	if (!ASAP_Load(sys->asap, demux->psz_file, module, module_len))
+#endif
+	{
 		ASAP_Delete(sys->asap);
 		free(sys);
 		free(module);
