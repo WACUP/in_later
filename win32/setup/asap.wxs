@@ -19,7 +19,7 @@
 
 		<!-- inspired by TortoiseSVN.wxs -->
 		<?if $(sys.BUILDARCH) = x86?>
-			<Launch Condition="NOT Msix64" Message="You are attempting to run the 32-bit installer on a 64-bit version of Windows. This worked for previous versions of ASAP, but now the 64-bit installer is all you need." />
+			<Launch Condition="NOT Msix64" Message="You are attempting to run the 32-bit installer on a 64-bit version of Windows. This worked in previous versions of ASAP, but now the 64-bit installer is all you need." />
 		<?else?>
 			<Upgrade Id="$(var.UPGRADE_GUID32)">
 				<UpgradeVersion Minimum="0.0.0.0" OnlyDetect="yes" Property="WIN32ASAPFOUND" />
@@ -27,9 +27,9 @@
 			<Launch Condition="NOT WIN32ASAPFOUND" Message="Please uninstall the previous version of ASAP." />
 		<?endif?>
 
-		<?define NATIVE_EXTS=cmc;cm3;cmr;cms;dmc;dlt;mpt;md1;md2;mpd;rmt;tmc;tm8;tm2;fc?>
-		<?define ASAP_EXTS=sap;$(var.NATIVE_EXTS)?>
-		<?define DOUBLECLICK=Double-click SAP, CMC, CM3, CMR, CMS, DMC, DLT, MPT, MD1, MD2, MPD, RMT, TMC, TM8, TM2 or FC file in Windows Explorer to play it in?>
+		<?define ASAP_EXTS=sap;cmc;cm3;cmr;cms;dmc;dlt;mpt;md1;md2;mpd;rmt;tmc;tm8;tm2;fc;d15;d8?>
+		<?define AIMP_EXTS=sap;rmt;fc?>
+		<?define DOUBLECLICK=Double-click SAP or other file in Windows Explorer to play it in?>
 
 		<Icon Id="wasap.ico" SourceFile="wasap/wasap.ico" />
 		<Property Id="ARPHELPLINK" Value="https://asap.sourceforge.net/" />
@@ -201,14 +201,15 @@
 						<Component Id="foo_asap.dll">
 							<File Source="$(var.SRC_DIR)foo_asap.dll" Checksum="yes" KeyPath="yes" />
 						</Component>
-						<Component Id="foo_asap.ext">
-							<RegistryValue Root="HKCR" Key="asap.file" Name="foo_asap" Type="integer" Value="1" KeyPath="yes" />
-							<?foreach EXT in $(var.NATIVE_EXTS)?>
-								<ProgId Id="foobar2000.$(var.EXT)">
-									<Extension Id="$(var.EXT)">
-										<Verb Id="open" TargetProperty="FOO.EXE" Argument="&quot;%1&quot;" />
-									</Extension>
-								</ProgId>
+						<Component Id="foo_asap.opw" Condition="FOO.EXE" Guid="7464F6EE-E79C-4EC7-8251-DF6BFDB121D4">
+							<?foreach EXT in $(var.ASAP_EXTS)?>
+								<RegistryValue Root="HKCR" Key="foobar2000.$(var.EXT)\shell\open\command" Type="string" Value="&quot;[FOO.EXE]&quot; &quot;%1&quot;" />
+								<RegistryValue Root="HKLM" Key="SOFTWARE\foobar2000\capabilities\FileAssociations" Name=".$(var.EXT)" Type="string" Value="foobar2000.$(var.EXT)" />
+							<?endforeach?>
+						</Component>
+						<Component Id="foo_asap.ext" Guid="237CA0A9-5462-4DE5-911E-E8CBCF3BC230">
+							<?foreach EXT in $(var.ASAP_EXTS)?>
+								<RegistryValue Root="HKCR" Key=".$(var.EXT)" Type="string" Value="foobar2000.$(var.EXT)" />
 							<?endforeach?>
 						</Component>
 					</Directory>
@@ -220,18 +221,16 @@
 			<Directory Id="ASAP.DIR" Name="ASAP">
 				<Component Id="wasap.exe">
 					<File Id="wasap.exe" Source="$(var.SRC_DIR)wasap.exe" Checksum="yes" KeyPath="yes" />
+					<RegistryValue Root="HKCR" Key="wasap.file\shell\open\command" Type="string" Value="&quot;[#wasap.exe]&quot; &quot;%1&quot;" />
+					<RegistryValue Root="HKLM" Key="SOFTWARE\RegisteredApplications" Name="WASAP" Type="string" Value="SOFTWARE\WASAP\capabilities" />
+					<?foreach EXT in $(var.ASAP_EXTS)?>
+						<RegistryValue Root="HKLM" Key="SOFTWARE\WASAP\capabilities\FileAssociations" Name=".$(var.EXT)" Type="string" Value="wasap.file" />
+					<?endforeach?>
 				</Component>
-				<Component Id="wasap.ext">
-					<RegistryValue Root="HKCR" Key="asap.file" Name="wasap" Type="integer" Value="1" KeyPath="yes" />
-					<ProgId Id="asap.file">
-						<Extension Id="sap">
-							<!-- nothing special about "sap", just Verb needs to be defined only once per ProgId -->
-							<Verb Id="open" TargetFile="wasap.exe" Argument="&quot;%1&quot;" />
-						</Extension>
-						<?foreach EXT in $(var.NATIVE_EXTS)?>
-							<Extension Id="$(var.EXT)" />
-						<?endforeach?>
-					</ProgId>
+				<Component Id="wasap.ext" Guid="B21AAC88-B0B7-4998-B1FE-13FEB8BBA8A5">
+					<?foreach EXT in $(var.ASAP_EXTS)?>
+						<RegistryValue Root="HKCR" Key=".$(var.EXT)" Type="string" Value="wasap.file" />
+					<?endforeach?>
 				</Component>
 
 				<Component Id="asapconv.exe">
@@ -244,7 +243,7 @@
 
 				<Component Id="ASAPShellEx.dll">
 					<File Id="ASAPShellEx.dll" Source="$(var.SRC_DIR)ASAPShellEx.dll" Checksum="yes" KeyPath="yes">
-						<Class Id="{5AE26367-B5CF-444D-B163-2CBC99B41287}" Context="InprocServer32" Description="ASAP Metadata Handler" ThreadingModel="both" />
+						<Class Id="5AE26367-B5CF-444D-B163-2CBC99B41287" Context="InprocServer32" Description="ASAP Metadata Handler" ThreadingModel="both" />
 					</File>
 					<RegistryValue Root="HKLM" Key="Software\Microsoft\Windows\CurrentVersion\Shell Extensions\Approved" Name="{5AE26367-B5CF-444D-B163-2CBC99B41287}" Value="ASAP Metadata Handler" Type="string" />
 				</Component>
@@ -290,16 +289,17 @@
 						<Component Id="bass_asap.dll">
 							<File Source="$(var.SRC_DIR)bass_asap.dll" Checksum="yes" KeyPath="yes" />
 						</Component>
-						<Component Id="aimp_asap.ext">
-							<RegistryValue Root="HKCR" Key="asap.file" Name="aimp" Type="integer" Value="1" KeyPath="yes" />
-							<ProgId Id="AIMP.ASAP">
-								<Extension Id="sap">
-									<Verb Id="open" Command="Open with AIMP" TargetProperty="AIMP.EXE" Argument="&quot;%1&quot;" />
-								</Extension>
-								<?foreach EXT in $(var.NATIVE_EXTS)?>
-									<Extension Id="$(var.EXT)" />
-								<?endforeach?>
-							</ProgId>
+						<Component Id="aimp_asap.opw" Condition="AIMP.EXE">
+							<RegistryValue Root="HKCR" Key="AIMP.ASAP\shell\open" Type="string" Value="Open with AIMP" KeyPath="true" />
+							<RegistryValue Root="HKCR" Key="AIMP.ASAP\shell\open\command" Type="string" Value="&quot;[AIMP.EXE]&quot; &quot;%1&quot;" />
+							<?foreach EXT in $(var.AIMP_EXTS)?>
+								<RegistryValue Root="HKLM" Key="SOFTWARE\AIMP\capabilities\FileAssociations" Name=".$(var.EXT)" Type="string" Value="AIMP.ASAP" />
+							<?endforeach?>
+						</Component>
+						<Component Id="aimp_asap.ext" Guid="BEA9A996-FC4E-4406-A8EB-E7AC9BF62A67">
+							<?foreach EXT in $(var.AIMP_EXTS)?>
+								<RegistryValue Root="HKCR" Key=".$(var.EXT)" Type="string" Value="AIMP.ASAP" />
+							<?endforeach?>
 						</Component>
 					</Directory>
 				</Directory>
@@ -311,16 +311,16 @@
 							<Component Id="libasap_plugin.dll">
 								<File Source="$(var.SRC_DIR)libasap_plugin.dll" Checksum="yes" KeyPath="yes" />
 							</Component>
-							<Component Id="libasap_plugin.ext">
-								<RegistryValue Root="HKCR" Key="asap.file" Name="vlc" Type="integer" Value="1" KeyPath="yes" />
-								<ProgId Id="VLC.sap">
-									<Extension Id="sap">
-										<Verb Id="open" TargetProperty="VLC.EXE" Argument="--demux=asap --started-from-file &quot;%1&quot;" />
-									</Extension>
-									<?foreach EXT in $(var.NATIVE_EXTS)?>
-										<Extension Id="$(var.EXT)" />
-									<?endforeach?>
-								</ProgId>
+							<Component Id="libasap_plugin.opw" Condition="VLC.EXE">
+								<RegistryValue Root="HKCR" Key="VLC.sap\shell\open\command" Type="string" Value="&quot;[VLC.EXE]&quot; --demux=asap --started-from-file &quot;%1&quot;" KeyPath="true" />
+								<?foreach EXT in $(var.ASAP_EXTS)?>
+									<RegistryValue Root="HKLM" Key="SOFTWARE\Clients\Media\VLC\capabilities\FileAssociations" Name=".$(var.EXT)" Type="string" Value="VLC.sap" />
+								<?endforeach?>
+							</Component>
+							<Component Id="libasap_plugin.ext" Guid="657B1675-BD82-45DC-A5F7-57340D8D91F7">
+								<?foreach EXT in $(var.ASAP_EXTS)?>
+									<RegistryValue Root="HKCR" Key=".$(var.EXT)" Type="string" Value="VLC.sap" />
+								<?endforeach?>
 							</Component>
 						</Directory>
 					</Directory>
@@ -333,16 +333,17 @@
 				<Component Id="xmp_asap.dll" Bitness="always32">
 					<File Source="xmp-asap.dll" Checksum="yes" KeyPath="yes" />
 				</Component>
-				<Component Id="xmp_asap.ext">
-					<RegistryValue Root="HKCR" Key="asap.file" Name="xmp_asap" Type="integer" Value="1" KeyPath="yes" />
-					<ProgId Id="XMPlay">
-						<Extension Id="sap">
-							<Verb Id="open" Command="&amp;Open with XMPlay" TargetProperty="XMPLAY.EXE" />
-						</Extension>
-						<?foreach EXT in $(var.NATIVE_EXTS)?>
-							<Extension Id="$(var.EXT)" />
-						<?endforeach?>
-					</ProgId>
+				<Component Id="xmp_asap.opw" Condition="XMPLAY.EXE">
+					<RegistryValue Root="HKCR" Key="XMPlay\shell\open" Type="string" Value="&amp;Open with XMPlay" KeyPath="true" />
+					<RegistryValue Root="HKCR" Key="XMPlay\shell\open\command" Type="string" Value="&quot;[XMPLAY.EXE]&quot;" />
+					<?foreach EXT in $(var.ASAP_EXTS)?>
+						<RegistryValue Root="HKLM" Key="SOFTWARE\XMPlay\capabilities\FileAssociations" Name=".$(var.EXT)" Type="string" Value="XMPlay" />
+					<?endforeach?>
+				</Component>
+				<Component Id="xmp_asap.ext" Guid="84DF5C0F-A9D6-4ECD-B1D3-3DF99BDD1850">
+					<?foreach EXT in $(var.ASAP_EXTS)?>
+						<RegistryValue Root="HKCR" Key=".$(var.EXT)" Type="string" Value="XMPlay" />
+					<?endforeach?>
 				</Component>
 			</Directory>
 			<Directory Id="WINAMP.DIR" Name="Winamp">
@@ -350,16 +351,16 @@
 					<Component Id="in_asap.dll" Bitness="always32">
 						<File Source="in_asap.dll" Checksum="yes" KeyPath="yes" />
 					</Component>
-					<Component Id="in_asap.ext">
-						<RegistryValue Root="HKCR" Key="Winamp.File" Name="in_asap" Type="integer" Value="1" KeyPath="yes" />
-						<ProgId Id="Winamp.File">
-							<Extension Id="sap">
-								<Verb Id="open" TargetProperty="WINAMP.EXE" Argument="&quot;%1&quot;" />
-							</Extension>
-							<?foreach EXT in $(var.NATIVE_EXTS)?>
-								<Extension Id="$(var.EXT)" />
-							<?endforeach?>
-						</ProgId>
+					<Component Id="in_asap.opw" Condition="WINAMP.EXE">
+						<RegistryValue Root="HKCR" Key="Winamp.File.SAP\shell\open\command" Type="string" Value="&quot;[WINAMP.EXE]&quot; &quot;%1&quot;" />
+						<?foreach EXT in $(var.ASAP_EXTS)?>
+							<RegistryValue Root="HKLM" Key="SOFTWARE\Clients\Media\Winamp\capabilities\FileAssociations" Name=".$(var.EXT)" Type="string" Value="Winamp.File.SAP" />
+						<?endforeach?>
+					</Component>
+					<Component Id="in_asap.ext" Guid="D87780A6-A719-469C-905B-7155BB802E1E">
+						<?foreach EXT in $(var.ASAP_EXTS)?>
+							<RegistryValue Root="HKCR" Key=".$(var.EXT)" Type="string" Value="Winamp.File.SAP" />
+						<?endforeach?>
 					</Component>
 				</Directory>
 			</Directory>
@@ -386,6 +387,7 @@
 		<Feature Id="foo_asap" Title="foobar2000 plugin" Level="9" ConfigurableDirectory="FOO.DIR" Description="Plugin for foobar2000." AllowAdvertise="no">
 			<Level Value="1" Condition="FOO.EXE" />
 			<ComponentRef Id="foo_asap.dll" />
+			<ComponentRef Id="foo_asap.opw" />
 			<Feature Id="foo_asap.ext" Title="Associate file types" Level="0" Description="$(var.DOUBLECLICK) foobar2000." AllowAdvertise="no">
 				<Level Value="9" Condition="FOO.EXE" />
 				<ComponentRef Id="foo_asap.ext" />
@@ -394,7 +396,8 @@
 		<Feature Id="aimp_asap" Title="AIMP plugin" Level="9" ConfigurableDirectory="AIMPASAP.DIR" Description="Plugin for AIMP." AllowAdvertise="no">
 			<Level Value="1" Condition="AIMP.DIR" />
 			<ComponentRef Id="bass_asap.dll" />
-			<Feature Id="aimp_asap.ext" Title="Associate file types" Level="0" Description="$(var.DOUBLECLICK) AIMP." AllowAdvertise="no">
+			<ComponentRef Id="aimp_asap.opw" />
+			<Feature Id="aimp_asap.ext" Title="Associate file types" Level="0" Description="Double-click SAP, RMT or FC file in Windows Explorer to play it in AIMP." AllowAdvertise="no">
 				<Level Value="9" Condition="AIMP.EXE" />
 				<ComponentRef Id="aimp_asap.ext" />
 			</Feature>
@@ -402,6 +405,7 @@
 		<Feature Id="xmp_asap" Title="XMPlay plugin" Level="9" ConfigurableDirectory="XMPLAY.DIR" Description="Plugin for XMPlay." AllowAdvertise="no">
 			<Level Value="1" Condition="XMPLAY.DIR" />
 			<ComponentRef Id="xmp_asap.dll" />
+			<ComponentRef Id="xmp_asap.opw" />
 			<Feature Id="xmp_asap.ext" Title="Associate file types" Level="0" Description="$(var.DOUBLECLICK) XMPlay." AllowAdvertise="no">
 				<Level Value="9" Condition="XMPLAY.EXE" />
 				<ComponentRef Id="xmp_asap.ext" />
@@ -410,6 +414,7 @@
 		<Feature Id="in_asap" Title="Winamp plugin" Level="9" ConfigurableDirectory="WINAMPPLUG.DIR" Description="Plugin for Winamp." AllowAdvertise="no">
 			<Level Value="1" Condition="WINAMP.DIR" />
 			<ComponentRef Id="in_asap.dll" />
+			<ComponentRef Id="in_asap.opw" />
 			<Feature Id="in_asap.ext" Title="Associate file types" Level="0" Description="$(var.DOUBLECLICK) Winamp." AllowAdvertise="no">
 				<Level Value="9" Condition="WINAMP.EXE" />
 				<ComponentRef Id="in_asap.ext" />
@@ -421,6 +426,7 @@
 		<Feature Id="libasap_plugin" Title="VLC plugin" Level="9" ConfigurableDirectory="VLC.DIR" Description="Plugin for VLC 3." AllowAdvertise="no">
 			<Level Value="1" Condition="VLC.DIR" />
 			<ComponentRef Id="libasap_plugin.dll" />
+			<ComponentRef Id="libasap_plugin.opw" />
 			<Feature Id="libasap_plugin.ext" Title="Associate file types" Level="0" Description="$(var.DOUBLECLICK) VLC." AllowAdvertise="no">
 				<Level Value="9" Condition="VLC.EXE" />
 				<ComponentRef Id="libasap_plugin.ext" />

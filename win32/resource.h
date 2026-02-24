@@ -6,7 +6,7 @@
 #define IDS_ABOUT_TITLE                 0
 #define ASAPInfo_VERSION_MICRO          0
 #define ASAPWriter_MAX_SAVE_EXTS        3
-#define ASAPInfo_VERSION_MAJOR          7
+#define ASAPInfo_VERSION_MAJOR          8
 #define ASAPWriter_MAX_DURATION_LENGTH  9
 #define ASAPInfo_MAX_SONGS              32
 #define ASAPInfo_MAX_TEXT_LENGTH        127

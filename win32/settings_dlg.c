@@ -46,7 +46,6 @@ void setFocusAndSelect(HWND hDlg, int nID)
 
 void settingsDialogSet(HWND hDlg, int sample_rate, int song_length, int silence_seconds, bool play_loops, int mute_mask)
 {
-	// TODO localise
 	HWND hWnd = GetDlgItem(hDlg, IDC_SAMPLERATE);
 	SendMessage(hWnd, CB_ADDSTRING, 0, (LPARAM) TEXT("44.1"));
 	SendMessage(hWnd, CB_ADDSTRING, 0, (LPARAM) TEXT("48"));
@@ -239,9 +238,9 @@ bool settingsDialog(HINSTANCE hInstance, HWND hwndParent)
 }
 #endif
 
-int getSongDurationInternal(const ASAPInfo *module_info, int song, ASAP *asap)
+int getSongDurationInternal(const ASAPInfo *info, int song, ASAP *asap)
 {
-	int duration = ASAPInfo_GetDuration(module_info, song);
+	int duration = ASAPInfo_GetDuration(info, song);
 	if (duration < 0) {
 		if (asap != NULL)
 			ASAP_DetectSilence(asap, silence_seconds);
@@ -249,7 +248,7 @@ int getSongDurationInternal(const ASAPInfo *module_info, int song, ASAP *asap)
 	}
 	if (asap != NULL)
 		ASAP_DetectSilence(asap, 0);
-	if (play_loops && ASAPInfo_GetLoop(module_info, song))
+	if (play_loops && ASAPInfo_GetLoop(info, song))
 		return 1000 * song_length;
 	return duration;
 }

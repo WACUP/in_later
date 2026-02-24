@@ -1,4 +1,4 @@
-﻿<?xml-stylesheet type="text/xsl" href="PORTS.xsl" ?>
+<?xml-stylesheet type="text/xsl" href="PORTS.xsl" ?>
 <ports>
 	<port name="WASAP">
 		<bin>Windows</bin>
@@ -201,7 +201,6 @@
 		<config-time>no</config-time>
 		<mute-pokey>no</mute-pokey>
 		<stil>no</stil>
-		<comment class="good">Plays from ZIP archives</comment>
 		<lang>Java</lang>
 	</port>
 	<port name="VLC plugin">
@@ -623,7 +622,7 @@
 		<since>5.2.0</since>
 		<status>sample</status>
 		<output>16-bit WAV file</output>
-		<subsongs>no</subsongs>
+		<subsongs>yes</subsongs>
 		<file-info>no</file-info>
 		<edit-info>no</edit-info>
 		<convert-sap>no</convert-sap>

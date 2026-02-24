@@ -22,6 +22,7 @@
 		<author name="Piotr Fusik" email="piotr@fusion-lang.org" href="https://fusik.info/piotr/">Creator and lead developer.</author>
 		<author name="Atari800 Emulator Developers" href="https://atari800.github.io/">6502 and POKEY emulation used in 0.x.y versions of ASAP.</author>
 		<author name="Rod Castler" href="https://commons.wikimedia.org/wiki/File:POKEY_chip_on_an_Atari_130XE_motherboard.jpg">Android background photo.</author>
+		<author name="Peter Dell" href="https://www.wudsn.com">Bug reports.</author>
 		<author name="Zdenek Eisenhammer" email="pg@pinknet.cz">Testing.</author>
 		<author name="Maciej Grzybek" email="grzybson@pigwa.net">Fixed an overflow in the Silverlight port.</author>
 		<author name="Jakub Husak" email="jakub.husak@gmail.com" href="http://husak.pl/">SAP fingerprint calculation. asapscan fixes.</author>
@@ -29,15 +30,16 @@
 		<author name="Maciek Konecki" email="maciusk1@wp.pl">Porting to C#.</author>
 		<author name="Marek Konopka" email="konop11@poczta.onet.pl">6502 routine for playing DLT.</author>
 		<author name="Daniel Koźminski" email="daniel.kozminski@gmail.com">Ideas.</author>
-		<author name="Jerzy Kut" email="mono@atari.pl" href="http://mono.atari.pl/">FC format.</author>
+		<author name="Jerzy Kut" email="mono@atari.pl">FC format.</author>
 		<author name="Marcin Lewandowski" email="jaskier@atari8.info" href="http://jaskier.atari8.info/">6502 routines for playing CMC, MPT, TMC and TM2.</author>
-		<author name="Ian Luck" email="il@un4seen.com">Guided development of XMPlay and BASS plugins.</author>
+		<author name="Ian Luck" email="il@un4seen.com">Guided the development of XMPlay and BASS plugins.</author>
 		<author name="MarOk" email="marok7@os.pl">CMS routine fix.</author>
 		<author name="Adrian Matoga" email="adrian@matoga.info">Implemented POKEY nonlinearities, configurable sample rate, D port. Photo of stereo POKEY.</author>
 		<author name="Perry McFarlane" email="perry_m@fastmail.fm">POKEY reverse-engineering.</author>
 		<author name="Kostas Nakos" email="knakos@gmail.com">Windows CE testing.</author>
 		<author name="Petri Pyy" email="laskipeto@gmail.com">macOS releases.</author>
 		<author name="Mariusz Rozwadowski" rip="true">Suggested CMS, CM3, DLT and STIL format support.</author>
+		<author name="Ciro Scognamiglio">Bug reports.</author>
 		<author name="Sławomir Śledź" email="slaves@scene.pl">Windows Mobile setup. Thorough testing.</author>
 		<author name="David Spilka">6502 routine for playing CMS.</author>
 		<author name="Radek Štěrba" rip="true">6502 routine for playing RMT. Testing.</author>

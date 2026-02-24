@@ -1,6 +1,6 @@
 // pokey.fu - POKEY chip emulator
 //
-// Copyright (C) 2010-2025  Piotr Fusik
+// Copyright (C) 2010-2026  Piotr Fusik
 //
 // This file is part of ASAP (Another Slight Atari Player),
 // see http://asap.sourceforge.net
@@ -42,6 +42,7 @@ class PokeyChannel
 	internal const int MuteInit = 1;
 	internal const int MuteUser = 2;
 	internal const int MuteSerialInput = 4;
+	internal const int MuteSongInit = 8;
 	internal int Mute;
 
 	int Out;
@@ -54,14 +55,18 @@ class PokeyChannel
 		PeriodCycles = 28;
 		TickCycle = Pokey.NeverCycle;
 		TimerCycle = Pokey.NeverCycle;
+#if APOKEYSND
 		Mute = 0;
+#else
+		Mute = MuteSongInit;
+#endif
 		Out = 0;
 		Delta = 0;
 	}
 
 	void AddDelta(Pokey! pokey, PokeyPair pokeys, int cycle, int delta)
 	{
-		pokey.AddDelta(pokeys, cycle, delta, (Mute & MuteUser) != 0);
+		pokey.AddPokeyDelta(pokeys, cycle, delta, (Mute & (MuteUser | MuteSongInit)) != 0);
 	}
 
 	void Slope!(Pokey! pokey, PokeyPair pokeys, int cycle)
@@ -181,7 +186,7 @@ class Pokey
 	int DeltaBufferLength;
 	int[]#? DeltaBuffer;
 #endif
-	0 .. 60 SumDACInputs;
+	int SumDACInputs;
 	int SumDACOutputs;
 
 	// POKEY DACs are characterized mostly by two types of nonlinearities:
@@ -256,18 +261,7 @@ class Pokey
 		StartFrame();
 	}
 
-	internal void AddDelta!(PokeyPair pokeys, int cycle, int delta, bool muted)
-	{
-		SumDACInputs += delta;
-		if (muted)
-			return;
-		const int DeltaShiftPOKEY = 16;
-		int newOutput = CompressedSums[SumDACInputs] << DeltaShiftPOKEY;
-		AddExternalDelta(pokeys, cycle, newOutput - SumDACOutputs);
-		SumDACOutputs = newOutput;
-	}
-
-	internal void AddExternalDelta!(PokeyPair pokeys, int cycle, int delta)
+	void AddDelta!(PokeyPair pokeys, int cycle, int delta)
 	{
 		if (delta == 0)
 			return;
@@ -277,6 +271,23 @@ class Pokey
 		delta >>= DeltaResolution;
 		for (int j = 0; j < UnitDeltaLength; j++)
 			DeltaBuffer[i + j] += delta * pokeys.SincLookup[fraction][j];
+	}
+
+	internal void AddPokeyDelta!(PokeyPair pokeys, int cycle, int delta, bool muted)
+	{
+		SumDACInputs += delta;
+		if (muted)
+			return;
+		const int DeltaShiftPOKEY = 16;
+		int newOutput = CompressedSums[SumDACInputs] << DeltaShiftPOKEY;
+		AddDelta(pokeys, cycle, newOutput - SumDACOutputs);
+		SumDACOutputs = newOutput;
+	}
+
+	internal void AddExternalDelta!(PokeyPair pokeys, int cycle, int delta)
+	{
+		if ((Channels[0].Mute & PokeyChannel.MuteSongInit) == 0)
+			AddDelta(pokeys, cycle, delta);
 	}
 
 	/// Fills `DeltaBuffer` up to `cycleLimit` basing on current Audf/Audc/Audctl values.
@@ -345,6 +356,12 @@ class Pokey
 	{
 		for (int i = 0; i < 4; i++)
 			Channels[i].SetMute((mask & (1 << i)) != 0, PokeyChannel.MuteUser, 0);
+	}
+
+	internal void EndSongInit!()
+	{
+		foreach (PokeyChannel! channel in Channels)
+			channel.SetMute(false, PokeyChannel.MuteSongInit, 0);
 	}
 
 	void InitMute!(int cycle)

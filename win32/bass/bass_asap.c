@@ -1,7 +1,7 @@
 /*
  * bass_asap.c - ASAP add-on for BASS
  *
- * Copyright (C) 2010-2020  Piotr Fusik
+ * Copyright (C) 2010-2026  Piotr Fusik
  *
  * This file is part of ASAP (Another Slight Atari Player),
  * see http://asap.sourceforge.net
@@ -34,12 +34,6 @@
 #define BASS_CTYPE_MUSIC_ASAP  0x1f100
 
 #include "asap.h"
-
-static const BASS_PLUGINFORM pluginform = {
-	BASS_CTYPE_MUSIC_ASAP, "ASAP", "*.sap;*.cmc;*.cm3;*.cmr;*.cms;*.dmc;*.dlt;*.mpt;*.mpd;*.rmt;*.tmc;*.tm8;*.tm2;*.fc"
-};
-
-static const BASS_PLUGININFO plugininfo = { MAKELONG(MAKEWORD(ASAPInfo_VERSION_MINOR, ASAPInfo_VERSION_MAJOR), BASSVERSION), 1, &pluginform };
 
 typedef struct
 {
@@ -120,26 +114,25 @@ static QWORD WINAPI ASAP_SetPosition(void *inst, QWORD pos, DWORD mode)
 	return pos;
 }
 
-static ADDON_FUNCTIONS ASAPfuncs = {
-	0,
-	ASAP_Free,
-	ASAP_GetLength,
-#ifdef SUPPORT_ID3
-	ASAP_GetTags,
-#else
-	NULL,
-#endif
-	NULL,
-	ASAP_GetBassInfo,
-	ASAP_CanSetPosition,
-	ASAP_SetPosition,
-	NULL,
-	NULL,
-	NULL,
-	NULL,
-	NULL,
-	NULL
+const BASS_FUNCTIONS *bassfunc;
+
+typedef struct {
+	int (*load)(const ASAPFileLoader *self, const char *filename, uint8_t *buffer, int length);
+} ASAPFileLoaderVtbl;
+
+struct ASAPFileLoader {
+	const ASAPFileLoaderVtbl *vtbl;
 };
+
+static int ASAPFileLoader_Load(const ASAPFileLoader *self, const char *filename, uint8_t *buffer, int length)
+{
+	BASSFILE file = bassfunc->file.Open(BASS_FILE_NAME, filename, 0, 0, 0, 0);
+	if (file == NULL)
+		return -1;
+	length = bassfunc->file.Read(file, buffer, length);
+	bassfunc->file.Close(file);
+	return length;
+}
 
 static DWORD CALLBACK StreamProc(HSTREAM handle, void *buffer, DWORD length, void *inst)
 {
@@ -156,9 +149,10 @@ static HSTREAM WINAPI StreamCreateProc(BASSFILE file, DWORD flags)
 	const char *filename = (const char *) bassfunc->file.GetFileName(file, &unicode);
 	char aFilename[MAX_PATH];
 	if (filename != NULL && unicode) {
-		if (WideCharToMultiByte(CP_ACP, 0, (LPCWSTR) filename, -1, aFilename, MAX_PATH, NULL, NULL) <= 0)
-			error(BASS_ERROR_NOTFILE);
-		filename = aFilename;
+		if (WideCharToMultiByte(CP_ACP, 0, (LPCWSTR) filename, -1, aFilename, MAX_PATH, NULL, NULL) > 0)
+			filename = aFilename;
+		else
+			filename = NULL;
 	}
 	byte module[ASAPInfo_MAX_MODULE_LENGTH];
 	int module_len = bassfunc->file.Read(file, module, sizeof(module));
@@ -170,7 +164,9 @@ static HSTREAM WINAPI StreamCreateProc(BASSFILE file, DWORD flags)
 		free(stream);
 		error(BASS_ERROR_MEM);
 	}
-	if (!ASAP_Load(stream->asap, filename, module, module_len)) {
+	static const ASAPFileLoaderVtbl loader_vtbl = { ASAPFileLoader_Load };
+	static const ASAPFileLoader loader = { &loader_vtbl };
+	if (!ASAP_LoadWithExtraFiles(stream->asap, filename, module, module_len, &loader)) {
 		ASAP_Delete(stream->asap);
 		free(stream);
 		error(BASS_ERROR_FILEFORM);
@@ -190,7 +186,27 @@ static HSTREAM WINAPI StreamCreateProc(BASSFILE file, DWORD flags)
 		free(stream);
 		error(BASS_ERROR_FILEFORM);
 	}
-	HSTREAM handle = bassfunc->CreateStream(ASAP_SAMPLE_RATE, ASAPInfo_GetChannels(info), flags, &StreamProc, stream, &ASAPfuncs);
+	static const ADDON_FUNCTIONS addonfuncs = {
+		0,
+		ASAP_Free,
+		ASAP_GetLength,
+#ifdef SUPPORT_ID3
+		ASAP_GetTags,
+#else
+		NULL,
+#endif
+		NULL,
+		ASAP_GetBassInfo,
+		ASAP_CanSetPosition,
+		ASAP_SetPosition,
+		NULL,
+		NULL,
+		NULL,
+		NULL,
+		NULL,
+		NULL
+	};
+	HSTREAM handle = bassfunc->CreateStream(ASAP_SAMPLE_RATE, ASAPInfo_GetChannels(info), flags, &StreamProc, stream, &addonfuncs);
 	if (handle == 0) {
 		ASAP_Delete(stream->asap);
 		free(stream);
@@ -202,6 +218,10 @@ static HSTREAM WINAPI StreamCreateProc(BASSFILE file, DWORD flags)
 
 __declspec(dllexport) const void *WINAPI BASSplugin(DWORD face)
 {
+	static const BASS_PLUGINFORM pluginform = {
+		BASS_CTYPE_MUSIC_ASAP, "ASAP", "*.sap;*.cmc;*.cm3;*.cmr;*.cms;*.dmc;*.dlt;*.mpt;*.md1;*.md2;*.mpd;*.rmt;*.tmc;*.tm8;*.tm2;*.fc;*.d15;*.d8"
+	};
+	static const BASS_PLUGININFO plugininfo = { MAKELONG(MAKEWORD(ASAPInfo_VERSION_MINOR, ASAPInfo_VERSION_MAJOR), BASSVERSION), 1, &pluginform };
 	switch (face) {
 	case BASSPLUGIN_INFO:
 		return &plugininfo;
@@ -214,7 +234,7 @@ __declspec(dllexport) const void *WINAPI BASSplugin(DWORD face)
 
 BOOL WINAPI DllMain(HINSTANCE hInstance, DWORD dwReason, LPVOID lpReserved)
 {
-	if (dwReason == DLL_PROCESS_ATTACH && HIWORD(BASS_GetVersion()) != BASSVERSION) {
+	if (dwReason == DLL_PROCESS_ATTACH && (HIWORD(BASS_GetVersion()) != BASSVERSION || !GetBassFunc())) {
 		MessageBox(NULL, "Incorrect BASS.DLL version (" BASSVERSIONTEXT " is required)", "ASAP", MB_ICONERROR);
 		return FALSE;
 	}

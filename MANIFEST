@@ -37,6 +37,8 @@ aatr-stdio.c
 aatr-stdio.h
 aatr.fu
 asap-sdl.c
+asap-stdio.c
+asap-stdio.h
 asap.c
 asap.fu
 asap.h
@@ -53,6 +55,7 @@ cpu6502.fu
 csharp/asap2wav.cs
 csharp/asapplay.cs
 csharp/csharp.mk
+csharp/filesystemloader.cs
 d/asap2wav.d
 d/d.mk
 debian/asap-dev.install
@@ -97,7 +100,7 @@ java/android/res/xml/searchable.xml
 java/asap2wav.MF
 java/java.mk
 javascript/USAGE
-javascript/asap2wav.mjs
+javascript/asap2wav.js
 javascript/asapweb.js
 javascript/javascript.mk
 moc/libasap_decoder.c

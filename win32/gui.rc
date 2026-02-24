@@ -83,8 +83,8 @@ FONT 8, "MS Shell Dlg"
 //
 
 1 VERSIONINFO
- FILEVERSION 7,0,0,23
- PRODUCTVERSION 7,0,0,23
+ FILEVERSION 8,0,0,23
+ PRODUCTVERSION 8,0,0,23
  FILEFLAGSMASK 0x17L
 #ifdef _DEBUG
  FILEFLAGS 0x1L
@@ -101,12 +101,12 @@ BEGIN
         BEGIN
             VALUE "CompanyName", "WACUP"
             VALUE "FileDescription", "Input Plug-in"
-            VALUE "FileVersion", "7.0.0.23"
+            VALUE "FileVersion", "8.0.0.23"
             VALUE "InternalName", "in_later.dll"
             VALUE "LegalCopyright", "Copyleft 2005-2026 Piotr Fusik. WACUP related modifications by Darren Owen aka DrO (2023-2026)"
             VALUE "OriginalFilename", "in_later.dll"
             VALUE "ProductName", "ASAP (Another Slight Atari Player) Decoder"
-            VALUE "ProductVersion", "7.0.0.23"
+            VALUE "ProductVersion", "8.0.0.23"
         END
     END
     BLOCK "VarFileInfo"

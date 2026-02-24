@@ -467,6 +467,33 @@ static LRESULT CALLBACK MainWndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM l
 			break;
 		}
 		break;
+	case WM_APPCOMMAND:
+		switch (GET_APPCOMMAND_LPARAM(lParam)) {
+		case APPCOMMAND_MEDIA_STOP:
+			StopPlayback();
+			return TRUE;
+		case APPCOMMAND_MEDIA_PLAY:
+			if (current_song < songs) {
+				LoadAndPlay(current_song);
+				return TRUE;
+			}
+			break;
+		case APPCOMMAND_MEDIA_PREVIOUSTRACK:
+			if (songs > 0 && current_song > 0) {
+				LoadAndPlay(current_song - 1);
+				return TRUE;
+			}
+			break;
+		case APPCOMMAND_MEDIA_NEXTTRACK:
+			if (current_song + 1 < songs) {
+				LoadAndPlay(current_song + 1);
+				return TRUE;
+			}
+			break;
+		default:
+			break;
+		}
+		break;
 	case WM_DESTROY:
 		PostQuitMessage(0);
 		break;
@@ -500,6 +527,7 @@ static LRESULT CALLBACK MainWndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM l
 			}
 			memcpy(current_filename, pcds->lpData, pcds->cbData);
 			LoadAndPlay(-1);
+			return TRUE;
 		}
 		break;
 	default:

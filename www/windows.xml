@@ -1,10 +1,8 @@
 ﻿<page title="Windows">
 	<h2>Windows</h2>
-	<p>Download <download prefix="asap-" suffix="-win32.msi" />.
-	It's an installer for Windows 11/10/8/7/Vista/XP, also the 64-bit ones.</p>
-	<p>The 64-bit installer <download prefix="asap-" suffix="-win64.msi" />
-	contains plugins to 64-bit versions of foobar2000, AIMP, VLC and Windows Explorer.
-	It is okay to have both the 32-bit and 64-bit ASAP packages installed at the same time.</p>
+	<p>On 64-bit Windows 11/10/8/7/Vista/XP download <download prefix="asap-" suffix="-win64.msi" />.
+	Starting from ASAP 8.0.0, you need only the 64-bit installer.</p>
+	<p>If you have a retrocomputer with 32-bit Windows, download <download prefix="asap-" suffix="-win32.msi" />.</p>
 
 	<h2>foobar2000</h2>
 	<p><a href="https://www.foobar2000.org/">foobar2000</a> is the recommended player.
@@ -68,6 +66,6 @@
 	The <code>-o/--output</code> option selects the output format and is mandatory.</p>
 
 	<h2>Manual installation</h2>
-	<p>If you are allergic to installers, download <download prefix="asap-" suffix="-win32.zip" />
-	and extract the files to proper locations.</p>
+	<p>If you are allergic to installers, download <download prefix="asap-" suffix="-win64.zip" />
+	or <download prefix="asap-" suffix="-win32.zip" /> and extract the files to proper locations.</p>
 </page>

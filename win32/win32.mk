@@ -174,11 +174,11 @@ CLEAN += win32/rmt/apokeysnd-res.o
 # ASAPShellEx
 
 win32/ASAPShellEx.dll: $(call src,win32/shellex/ASAPShellEx.cpp asap.h) win32/asap.o win32/shellex/ASAPShellEx-res.o
-	$(WIN_CXX) -Wl,--kill-at -lole32 -loleaut32 -lshlwapi -luuid
+	$(WIN_CXX) -Wl,--kill-at -lole32 -loleaut32 -lshlwapi -luuid -lpropsys
 CLEAN += win32/ASAPShellEx.dll
 
 win32/x64/ASAPShellEx.dll: $(call src,win32/shellex/ASAPShellEx.cpp asap.h) win32/x64/asap.o win32/x64/ASAPShellEx-res.o
-	$(WIN_CXX) -Wl,--kill-at -lole32 -loleaut32 -lshlwapi -luuid
+	$(WIN_CXX) -Wl,--kill-at -lole32 -loleaut32 -lshlwapi -luuid -lpropsys
 CLEAN += win32/x64/ASAPShellEx.dll
 
 win32/shellex/ASAPShellEx-res.o win32/x64/ASAPShellEx-res.o: $(call src,win32/gui.rc asap.h)

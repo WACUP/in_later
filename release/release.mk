@@ -5,7 +5,7 @@ GREP = @grep -H
 
 # no user-configurable paths below this line
 
-VERSION = 7.0.0
+VERSION = 8.0.0
 
 ifndef DO
 $(error Use "Makefile" instead of "release.mk")
@@ -37,11 +37,11 @@ release/asap-$(VERSION)-web.zip: release/COPYING.txt \
 	javascript/asap.js $(srcdir)javascript/asapweb.js
 	$(MAKEZIP)
 
-release/asap-$(VERSION)-win32.zip: release/COPYING.txt \
+release/asap-$(VERSION)-win32.zip: release/COPYING.txt $(srcdir)win32/shellex/ASAPShellEx.propdesc \
 	$(addprefix win32/,asapconv.exe asapscan.exe wasap.exe in_asap.dll foo_asap.dll apokeysnd.dll xmp-asap.dll bass_asap.dll ASAPShellEx.dll libasap_plugin.dll signed)
 	$(MAKEZIP)
 
-release/asap-$(VERSION)-win64.zip: release/COPYING.txt \
+release/asap-$(VERSION)-win64.zip: release/COPYING.txt $(srcdir)win32/shellex/ASAPShellEx.propdesc \
 	$(addprefix win32/x64/,asapconv.exe asapscan.exe wasap.exe foo_asap.dll bass_asap.dll ASAPShellEx.dll libasap_plugin.dll) win32/signed
 	$(MAKEZIP)
 
@@ -54,7 +54,7 @@ ifdef FOX_CODESIGNING_IDENTITY
 	codesign --options runtime -f -s $(FOX_CODESIGNING_IDENTITY) release/osx/asapconv
 endif
 	$(DO)hdiutil create -volname asap-$(VERSION)-macos -srcfolder release/osx -format UDBZ -fs HFS+ -imagekey bzip2-level=3 -ov $@
-	/Applications/Xcode.app/Contents/Developer/usr/bin/notarytool submit --wait --keychain-profile foxnotary $@
+	/Applications/Xcode.app/Contents/Developer/usr/bin/notarytool submit --keychain-profile foxnotary $@
 
 release/osx/libasap_plugin.dylib: libasap_plugin.dylib
 	$(DO)strip -o $@ -x $< && chmod 644 $@

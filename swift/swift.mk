@@ -1,4 +1,4 @@
-SWIFTC = $(DO)swiftc -no-color-diagnostics
+SWIFTC = $(DO)swiftc
 
 # no user-configurable paths below this line
 

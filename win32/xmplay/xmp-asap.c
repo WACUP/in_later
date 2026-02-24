@@ -1,7 +1,7 @@
 /*
  * xmp-asap.c - ASAP plugin for XMPlay
  *
- * Copyright (C) 2010-2025  Piotr Fusik
+ * Copyright (C) 2010-2026  Piotr Fusik
  *
  * This file is part of ASAP (Another Slight Atari Player),
  * see http://asap.sourceforge.net
@@ -350,7 +350,7 @@ __declspec(dllexport) XMPIN *WINAPI XMPIN_GetInterface(DWORD face, InterfaceProc
 	static XMPIN xmpin = {
 		0,
 		"ASAP",
-		"ASAP\0sap/cmc/cm3/cmr/cms/dmc/dlt/mpt/md1/md2/mpd/rmt/tmc/tm8/tm2/fc",
+		"ASAP\0sap/cmc/cm3/cmr/cms/dmc/dlt/mpt/md1/md2/mpd/rmt/tmc/tm8/tm2/fc/d15/d8",
 		ASAP_About,
 		ASAP_Config,
 		ASAP_CheckFile,

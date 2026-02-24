@@ -70,11 +70,24 @@
 	<pre>asapconv --address=a000 -o relocated.rmt original.rmt</pre>
 
 	<h2>Mass conversion</h2>
-	<p>asapconv supports filename wildcards.
-	To recursively process directories on Windows, use for example:</p>
+	<p>To recursively process directories on Windows, use for example:</p>
 	<pre>for /r ASMA %f in (*.sap) do @asapconv -o .%e %f</pre>
 	<p>The above command will extract native modules in different formats
 	and write them next to the SAP files in the ASMA directory.
 	On macOS or Linux use:</p>
 	<pre>find ASMA -name \*.sap -exec asapconv -o .%e {} \;</pre>
+
+	<h2>Converting WAV to MPT samples (D15/D8)</h2>
+	<p>A D15/D8 file contains up to 16 samples of total size 12 KB,
+	which corresponds to 1.6s for D15 and 3.2s for D8.</p>
+	<p>Every sample should be stored in a separate WAV file, mono 8- or 16-bit.
+	Since POKEY samples are 4-bit, they will take half the size of 8-bit WAV files
+	and a quarter the size of 16-bit WAV files.
+	Some overdrive is recommended in order to take advantage of the full 4-bit range.
+	For D15, the WAV files should be 15000 Hz, for D8 - 7500 Hz.</p>
+	<p>The WAV filenames must follow this pattern: the last character before
+	the ".wav" extension must be the hexadecimal sample number 0 to f.</p>
+	<p>From the command line pass the filename of the first sample file
+	(ending with <code>0.wav</code>) and the target name:</p>
+	<pre>asapconv -o mana.d8 mana-0.wav</pre>
 </page>

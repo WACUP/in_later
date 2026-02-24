@@ -1,4 +1,33 @@
 ﻿<page title="News">
+	<release version="8.0.0" date="2026-02-16">
+		<ul>
+			<li>Single <code>win64.msi</code> installer for 64-bit Windows</li>
+			<li>Playback of D15/D8 samples (each sample is a "subsong")</li>
+			<li>The installer puts the foobar2000 plugin in user's directory (same as the <code>fb2k-component</code> package)</li>
+			<li>The installer registers all the installed plugins for Windows "Open with"</li>
+			<li>Fixed the installer not associating SAP with foobar2000</li>
+			<li>D15/D8 files with trailing garbage are accepted</li>
+			<li>XMMS2 accepts the FC format</li>
+			<li>WASAP handles media keys: stop, play, previous/next (just for subsongs)</li>
+			<li>asapconv converts WAV to D15/D8</li>
+			<li>Fixed crash of the experimental Swift port</li>
+			<li>The experimental OpenCL port now converts all files in parallel on a GPU</li>
+		</ul>
+		<ul title="Requested by Peter Dell">
+			<li>Fixed SAP->RMT extraction not working</li>
+			<li>Added a <code>win64.zip</code> package</li>
+			<li>Windows Explorer properties now includes "SAP Date" instead of just "Year"</li>
+			<li><code>regsvr32 ASAPShellEx.dll</code> handles all registry entries and the <code>propdesc</code> file</li>
+		</ul>
+		<ul title="Reported by Ciro Scognamiglio">
+			<li>Fixed POKEY channels unmuted on rewind (foobar2000 wasn't affected)</li>
+			<li>Fixed all RMT instruments shown as number 000 in XMPlay</li>
+		</ul>
+		<ul title="Reported by Drei Eck">
+			<li>Fixed "Failed to find plugin header" in XMMS2 0.9.x</li>
+		</ul>
+	</release>
+
 	<release version="7.0.0" date="2025-12-20">
 		<ul>
 			<li>New input formats: MD1+D15, MD1+D8, MD2+D8</li>

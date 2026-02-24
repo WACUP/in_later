@@ -30,7 +30,7 @@
 #include "asap.h"
 
 static const char extensions[][5] =
-	{ ".sap", ".cmc", ".cm3", ".cmr", ".cms", ".dmc", ".dlt", ".mpt", ".md1", ".md2", ".mpd", ".rmt", ".tmc", ".tm8", ".tm2", ".fc" };
+	{ ".sap", ".cmc", ".cm3", ".cmr", ".cms", ".dmc", ".dlt", ".mpt", ".md1", ".md2", ".mpd", ".rmt", ".tmc", ".tm8", ".tm2", ".fc", ".d15", ".d8" };
 
 static HINSTANCE g_hDll;
 static LONG g_cRef = 0;
@@ -532,6 +532,41 @@ STDAPI_(BOOL) __declspec(dllexport) DllMain(HINSTANCE hInstance, DWORD dwReason,
 	return TRUE;
 }
 
+static HRESULT GetPropdescFilename(LPWSTR szSchemaPath)
+{
+	if (!GetModuleFileNameW(g_hDll, szSchemaPath, MAX_PATH)
+	 || !PathRemoveFileSpecW(szSchemaPath)
+	 || !PathAppendW(szSchemaPath, L"ASAPShellEx.propdesc"))
+		return E_FAIL;
+	return CoInitialize(nullptr);
+}
+
+STDAPI __declspec(dllexport) InstallPropertySchema()
+{
+	WCHAR szSchemaPath[MAX_PATH];
+	HRESULT hr = GetPropdescFilename(szSchemaPath);
+	if (FAILED(hr))
+		return hr;
+	hr = PSRegisterPropertySchema(szSchemaPath);
+	CoUninitialize();
+	if (hr == INPLACE_S_TRUNCATED) // returned on Windows 10/11, no idea why
+		hr = S_OK;
+	if (SUCCEEDED(hr))
+		SHChangeNotify(SHCNE_ASSOCCHANGED, SHCNF_IDLIST, nullptr, nullptr);
+	return hr;
+}
+
+STDAPI __declspec(dllexport) UninstallPropertySchema()
+{
+	WCHAR szSchemaPath[MAX_PATH];
+	HRESULT hr = GetPropdescFilename(szSchemaPath);
+	if (FAILED(hr))
+		return hr;
+	hr = PSUnregisterPropertySchema(szSchemaPath);
+	CoUninitialize();
+	return hr;
+}
+
 static LSTATUS RegSetString(HKEY hKey, LPCSTR lpValueName, LPCSTR lpStr)
 {
 	return RegSetValueEx(hKey, lpValueName, 0, REG_SZ, reinterpret_cast<const BYTE *>(lpStr), strlen(lpStr) + 1);
@@ -581,12 +616,65 @@ STDAPI __declspec(dllexport) DllRegisterServer()
 		return E_FAIL;
 	}
 	RegCloseKey(hk1);
-	return S_OK;
+
+	if (RegOpenKeyEx(HKEY_LOCAL_MACHINE, "SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Explorer\\KindMap", 0, KEY_SET_VALUE, &hk1) != ERROR_SUCCESS)
+		return E_FAIL;
+	for (LPCSTR ext : extensions) {
+		if (RegSetString(hk1, ext, "music") != ERROR_SUCCESS) {
+			RegCloseKey(hk1);
+			return E_FAIL;
+		}
+	}
+	RegCloseKey(hk1);
+
+	if (RegOpenKeyEx(HKEY_CLASSES_ROOT, "SystemFileAssociations", 0, KEY_WRITE, &hk1) != ERROR_SUCCESS)
+		return E_FAIL;
+	for (LPCSTR ext : extensions) {
+		if (RegCreateKeyEx(hk1, ext, 0, nullptr, 0, KEY_WRITE, nullptr, &hk2, nullptr) != ERROR_SUCCESS) {
+			RegCloseKey(hk1);
+			return E_FAIL;
+		}
+		LPCSTR fullDetails;
+#define FULLDETAILS_COMMON "System.PropGroup.Audio;System.Media.Duration;System.Audio.ChannelCount;ASAP.Subsongs;ASAP.PALNTSC;" \
+	"System.PropGroup.FileSystem;System.ItemNameDisplay;System.ItemType;System.ItemFolderPathDisplay;System.Size;System.DateCreated;System.DateModified;System.FileAttributes"
+		switch (ext[1]) {
+		case 's': // sap
+			fullDetails = "prop:System.PropGroup.Description;System.Author;System.Title;ASAP.Date;" FULLDETAILS_COMMON;
+			break;
+		case 'r': // rmt
+		case 't': // tmc, tm8, tm2
+			fullDetails = "prop:System.PropGroup.Description;System.Title;" FULLDETAILS_COMMON;
+			break;
+		default:
+			fullDetails = "prop:" FULLDETAILS_COMMON;
+			break;
+		}
+		if (RegSetString(hk2, "InfoTip", "prop:System.ItemType;System.Size;System.Media.Duration") != ERROR_SUCCESS
+		 || RegSetString(hk2, "ExtendedTileInfo", "prop:System.ItemType;System.Size;System.Media.Duration") != ERROR_SUCCESS
+		 || RegSetString(hk2, "PreviewDetails", "prop:*System.Title;*System.Media.Duration;*System.Size;*System.Author;*ASAP.Date") != ERROR_SUCCESS
+		 || RegSetString(hk2, "FullDetails", fullDetails) != ERROR_SUCCESS
+		 || RegSetString(hk2, "PerceivedType", "audio") != ERROR_SUCCESS)
+		RegCloseKey(hk2);
+	}
+	RegCloseKey(hk1);
+	return InstallPropertySchema();
 }
 
 STDAPI __declspec(dllexport) DllUnregisterServer()
 {
+	UninstallPropertySchema();
+
 	HKEY hk1;
+	if (RegOpenKeyEx(HKEY_CLASSES_ROOT, "SystemFileAssociations", 0, DELETE, &hk1) == ERROR_SUCCESS) {
+		for (LPCSTR ext : extensions)
+			RegDeleteKey(hk1, ext);
+		RegCloseKey(hk1);
+	}
+	if (RegOpenKeyEx(HKEY_LOCAL_MACHINE, "SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Explorer\\KindMap", 0, KEY_SET_VALUE, &hk1) == ERROR_SUCCESS) {
+		for (LPCSTR ext : extensions)
+			RegDeleteValue(hk1, ext);
+		RegCloseKey(hk1);
+	}
 	if (RegOpenKeyEx(HKEY_LOCAL_MACHINE, "SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Shell Extensions\\Approved", 0, KEY_SET_VALUE, &hk1) == ERROR_SUCCESS) {
 		RegDeleteValue(hk1, CLSID_ASAPMetadataHandler_str);
 		RegCloseKey(hk1);
@@ -616,43 +704,4 @@ STDAPI __declspec(dllexport) DllGetClassObject(REFCLSID rclsid, REFIID riid, LPV
 STDAPI __declspec(dllexport) DllCanUnloadNow()
 {
 	return g_cRef == 0 ? S_OK : S_FALSE;
-}
-
-static HRESULT DoPropertySchema(LPCSTR funcName)
-{
-	HRESULT hr = CoInitialize(nullptr);
-	if (SUCCEEDED(hr)) {
-		WCHAR szSchemaPath[MAX_PATH];
-		hr = E_FAIL;
-		if (GetModuleFileNameW(g_hDll, szSchemaPath, MAX_PATH)
-		 && PathRemoveFileSpecW(szSchemaPath)
-		 && PathAppendW(szSchemaPath, L"ASAPShellEx.propdesc")) {
-			HMODULE propsysDll = LoadLibrary("propsys.dll");
-			if (propsysDll != nullptr) {
-				typedef HRESULT (__stdcall *FuncType)(PCWSTR);
-				FuncType func = reinterpret_cast<FuncType>(GetProcAddress(propsysDll, funcName));
-				if (func != nullptr) {
-					hr = func(szSchemaPath);
-					if (hr == INPLACE_S_TRUNCATED) // returned on Windows 10, no idea why
-						hr = S_OK;
-				}
-				FreeLibrary(propsysDll);
-			}
-		}
-		CoUninitialize();
-	}
-	return hr;
-}
-
-STDAPI __declspec(dllexport) InstallPropertySchema()
-{
-	HRESULT hr = DoPropertySchema("PSRegisterPropertySchema");
-	if (SUCCEEDED(hr))
-		SHChangeNotify(SHCNE_ASSOCCHANGED, SHCNF_IDLIST, nullptr, nullptr);
-	return hr;
-}
-
-STDAPI __declspec(dllexport) UninstallPropertySchema()
-{
-	return DoPropertySchema("PSUnregisterPropertySchema");
 }

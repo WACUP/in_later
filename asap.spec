@@ -1,5 +1,5 @@
 Name: asap
-Version: 7.0.0
+Version: 8.0.0
 Release: 1
 Summary: Player of Atari 8-bit music
 License: GPLv2+
@@ -59,6 +59,9 @@ make DESTDIR=%{buildroot} prefix=%{_prefix} libdir=%{_libdir} install install-vl
 %{_libdir}/xmms2/libxmms_asap.so
 
 %changelog
+* Mon Feb 16 2026 Piotr Fusik <fox@scene.pl>
+- 8.0.0-1
+
 * Sat Dec 20 2025 Piotr Fusik <fox@scene.pl>
 - 7.0.0-1
 

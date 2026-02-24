@@ -93,13 +93,6 @@ bool ASAP_LoadWithExtraFiles(ASAP *self, const char *filename, uint8_t const *mo
 const ASAPInfo *ASAP_GetInfo(const ASAP *self);
 
 /**
- * Mutes the selected POKEY channels.
- * @param self This <code>ASAP</code>.
- * @param mask An 8-bit mask which selects POKEY channels to be muted.
- */
-void ASAP_MutePokeyChannels(ASAP *self, int mask);
-
-/**
  * Prepares playback of the specified song of the loaded module.
  * @param self This <code>ASAP</code>.
  * @param song Zero-based song index.
@@ -107,6 +100,13 @@ void ASAP_MutePokeyChannels(ASAP *self, int mask);
  * @return <code>false</code> on error.
  */
 bool ASAP_PlaySong(ASAP *self, int song, int duration);
+
+/**
+ * Mutes the selected POKEY channels.
+ * @param self This <code>ASAP</code>.
+ * @param mask An 8-bit mask which selects POKEY channels to be muted.
+ */
+void ASAP_MutePokeyChannels(ASAP *self, int mask);
 
 /**
  * Returns current playback position in blocks.
@@ -169,7 +169,7 @@ void ASAPInfo_Delete(ASAPInfo *self);
 /**
  * ASAP version - major part.
  */
-#define ASAPInfo_VERSION_MAJOR 7
+#define ASAPInfo_VERSION_MAJOR 8
 
 /**
  * ASAP version - minor part.
@@ -184,12 +184,12 @@ void ASAPInfo_Delete(ASAPInfo *self);
 /**
  * ASAP version - micro part.
  */
-#define ASAPInfo_VERSION_PATCH 23
+#define ASAPInfo_VERSION_PATCH 25
 
 /**
  * ASAP version as a string.
  */
-#define ASAPInfo_VERSION "7.0.0.23"
+#define ASAPInfo_VERSION "8.0.0.25"
 
 /**
  * Years ASAP was created in.

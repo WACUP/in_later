@@ -705,7 +705,7 @@ void updateInfoDialog(const wchar_t *filename, int song)
 	enableDlgItem(IDC_SONGNO, songs > 1);
 	for (int i = 1; i <= songs; i++) {
 		wchar_t str[16];
-		_wsnprintf(str, 16, L"%d", i);
+		_wsnprintf(str, ARRAYSIZE(str), L"%d", i);
 		SendDlgItemMessage(infoDialog, IDC_SONGNO, CB_ADDSTRING, 0, (LPARAM) str);
 	}
 	if (song < 0)

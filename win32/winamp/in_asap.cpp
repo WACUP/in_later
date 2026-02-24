@@ -1,7 +1,7 @@
 /*
  * in_asap.c - ASAP plugin for Winamp
  *
- * Copyright (C) 2005-2025  Piotr Fusik
+ * Copyright (C) 2005-2026  Piotr Fusik
  *
  * This file is part of ASAP (Another Slight Atari Player),
  * see http://asap.sourceforge.net
@@ -618,7 +618,8 @@ void GetFileExtensions(void)
 			{ L"TMC;TM8", 7 },
 			{ L"TM2", 3 },
 			{ L"FC", 2 },
-			{ L"ATR", 3 }
+			{ L"ATR", 3 },
+			{ L"D15;D8", 6 },
 		},
 			// TODO localise
 			descriptions[]
@@ -631,7 +632,8 @@ void GetFileExtensions(void)
 			{ L"Theta Music Composer 1.x (*.TMC;*.TM8)", 38 },
 			{ L"Theta Music Composer 2.x (*.TM2)", 32 },
 			{ L"Future Composer (*.FC)", 22 },
-			{ L"Atari 8-bit Disk Image (*.ATR)", 30 }
+			{ L"Atari 8-bit Disk Image (*.ATR)", 30 },
+			{ L"Music ProTracker samples (*.D15;*D8)", 36 },
 		};
 
 		plugin.FileExtensions = BuildInputFileListArrayString(extensions, descriptions,
@@ -702,10 +704,9 @@ extern "C" __declspec(dllexport) int winampUninstallPlugin(HINSTANCE hDllInst, H
 }
 
 // TODO localise
-extern "C" const wchar_t* pExtList[16] = { L"SAP", L"CMC", L"CM3", L"CMR",
-										   L"CMS", L"DMC", L"DLT", L"MPT",
-										   L"MPD", L"MD1", L"MD2", L"RMT",
-										   L"TMC", L"TM2", L"FC", L"ATR" };
+extern "C" const wchar_t* pExtList[18] = { L"SAP", L"CMC", L"CM3", L"CMR", L"CMS", L"DMC",
+										   L"DLT", L"MPT", L"MPD", L"MD1", L"MD2", L"RMT",
+										   L"TMC", L"TM2", L"FC", L"ATR", L"D15", L"D8" };
 extern "C" const wchar_t* pExtDescList[ARRAYSIZE(pExtList)] =
 {
 	L"Slight Atari Player File",
@@ -724,6 +725,8 @@ extern "C" const wchar_t* pExtDescList[ARRAYSIZE(pExtList)] =
 	L"Theta Music Composer 2.x File",
 	L"Future Composer File",
 	L"Atari 8-bit Disk Image",
+	L"Music ProTracker samples",
+	L"Music ProTracker samples",
 };
 
 const int GetExtensionName(LPCWSTR pszExt, LPWSTR pszDest, const int cchDest)
