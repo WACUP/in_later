@@ -569,7 +569,7 @@ static void convert_to_d15(const char *input_file, bool output_d8)
 		uint8_t block_size = wav_header[32];
 		if (block_size < 1 || block_size > 2 || wav_header[34] != 4 << block_size)
 			fatal_error("%s: not 8-bit or 16-bit", wav_file);
-		uint32_t wav_rate = wav_header[24] | wav_header[25] << 8 | wav_header[26] << 16 | wav_header[27] << 24;
+		int wav_rate = wav_header[24] | wav_header[25] << 8 | wav_header[26] << 16 | wav_header[27] << 24;
 		if (wav_rate < 14200 >> output_d8 || wav_rate > 15556 >> output_d8)
 			fatal_error("%s: invalid sample rate, should be %d\n", wav_file, 15000 >> output_d8);
 		uint32_t wav_len = wav_header[40] | wav_header[41] << 8 | wav_header[42] << 16 | wav_header[43] << 24;
@@ -623,7 +623,7 @@ static void convert_to_module(const char *input_file, bool output_xex)
 	if (fp == NULL)
 		fatal_error("%s: cannot open", input_file);
 	static uint8_t module[ASAPInfo_MAX_MODULE_LENGTH];
-	int module_len = fread(module, 1, sizeof(module), fp);
+	int module_len = (int) fread(module, 1, sizeof(module), fp);
 	fclose(fp);
 	ASAPInfo *info = ASAPInfo_New();
 	if (info == NULL)

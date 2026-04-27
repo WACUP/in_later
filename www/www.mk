@@ -5,7 +5,7 @@ endif
 WWW_TARGETS = www/index.html www/android.html www/windows.html www/macos.html www/linux.html \
 	www/web.html www/formats.html www/convert.html www/news.html www/sap-format.html www/contact.html \
 	www/apokeysnd.dll www/asap.js www/asapweb.js \
-	www/favicon.ico www/PORTS.xml www/PORTS.xsl
+	www/examples.zip www/favicon.ico www/PORTS.xml www/PORTS.xsl
 CLEAN += $(WWW_TARGETS)
 
 www: $(WWW_TARGETS)
@@ -22,6 +22,9 @@ www/asap.js: javascript/asap.js
 
 www/asapweb.js: $(srcdir)javascript/asapweb.js
 	$(COPY)
+
+www/examples.zip: $(srcdir)/examples/*
+	$(MAKEZIP)
 
 www/favicon.ico: $(srcdir)win32/wasap/wasap.ico
 	$(COPY)

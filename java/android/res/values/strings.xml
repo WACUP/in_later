@@ -9,6 +9,7 @@
 	<string name="error_reading_file">Error reading file</string>
 	<string name="invalid_file">Invalid file</string>
 	<string name="song_format">Song %1$d of %2$d</string>
+	<string name="title_format">%1$s (song %2$d)</string>
 	<string name="menu_search">Search</string>
 	<string name="menu_browse">Browse</string>
 	<string name="notification_channel">Now Playing</string>

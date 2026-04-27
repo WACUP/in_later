@@ -1,7 +1,7 @@
 /*
  * PlayerService.java - ASAP for Android
  *
- * Copyright (C) 2010-2023  Piotr Fusik
+ * Copyright (C) 2010-2026  Piotr Fusik
  *
  * This file is part of ASAP (Another Slight Atari Player),
  * see http://asap.sourceforge.net
@@ -86,6 +86,15 @@ public class PlayerService extends MediaBrowserService implements Runnable, Audi
 		return new Notification.Action(icon, getString(titleResource), intent);
 	}
 
+	private String getDisplayTitle()
+	{
+		String title = info.getTitleOrFilename();
+		int songs = info.getSongs();
+		if (songs > 1)
+			return getString(R.string.title_format, title, song + 1, songs);
+		return title;
+	}
+
 	private void showNotification(boolean start)
 	{
 		Notification.Builder builder;
@@ -101,7 +110,7 @@ public class PlayerService extends MediaBrowserService implements Runnable, Audi
 			builder = new Notification.Builder(this);
 		Notification notification = builder
 			.setSmallIcon(R.drawable.ic_notification)
-			.setContentTitle(info.getTitleOrFilename())
+			.setContentTitle(getDisplayTitle())
 			.setContentText(info.getAuthor())
 			.setContentIntent(activityIntent)
 			.setStyle(new Notification.MediaStyle()

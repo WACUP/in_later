@@ -19,6 +19,202 @@
 // along with ASAP; if not, write to the Free Software Foundation, Inc.,
 // 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 
+class ASAPModuleTransfer
+{
+	internal byte[] Source;
+	internal int SourceOffset;
+	internal byte[]! Output;
+	internal int OutputOffset;
+	int AddressDiff;
+
+	void WriteByte!(byte value)
+	{
+		Output[OutputOffset++] = value;
+	}
+
+	void WriteWord!(ushort value)
+	{
+		WriteByte(value & 0xff);
+		WriteByte(value >> 8);
+	}
+
+	internal void WriteBytes!(byte[] source, int offset, int count)
+	{
+		source.CopyTo(offset, Output, OutputOffset, count);
+		OutputOffset += count;
+	}
+
+	ushort ReadWord!()
+	{
+		ushort value = ASAPInfo.GetWord(Source, SourceOffset);
+		SourceOffset += 2;
+		return value;
+	}
+
+	void Copy!(int count)
+	{
+		WriteBytes(Source, SourceOffset, count);
+		SourceOffset += count;
+	}
+
+	void RelocateBytes!(int lowOffset, int highOffset, int count, int shift)
+	{
+		lowOffset += SourceOffset;
+		highOffset += SourceOffset;
+		for (int i = 0; i < count; i++) {
+			int address = Source[lowOffset + i] + (Source[highOffset + i] << 8);
+			if (address != 0 && address != 0xffff)
+				address += AddressDiff;
+			WriteByte((address >> shift) & 0xff);
+		}
+		SourceOffset += count;
+	}
+
+	void RelocateLowHigh!(int count)
+	{
+		RelocateBytes(0, count, count, 0);
+		RelocateBytes(-count, 0, count, 8);
+	}
+
+	void RelocateWords!(int count)
+	{
+		while (--count >= 0) {
+			int address = ReadWord();
+			if (address != 0 && address != 0xffff)
+				address += AddressDiff;
+			WriteWord(address);
+		}
+	}
+
+	internal void TransferModule!(ASAPInfo info, int sourceEnd, bool header, bool rmtNames)
+	{
+		SourceOffset += 2;
+		ushort startAddr = ReadWord();
+		ushort endAddr = ReadWord();
+		AddressDiff = info.Music < 0 ? 0 : info.Music - startAddr;
+		if (header) {
+			WriteWord(0xffff);
+			WriteWord(startAddr + AddressDiff);
+			WriteWord(endAddr + AddressDiff);
+		}
+		switch (info.OriginalType) {
+		case ASAPModuleType.Cmc:
+		case ASAPModuleType.Cm3:
+		case ASAPModuleType.Cmr:
+		case ASAPModuleType.Cms:
+			// CMC/SAP -> CMC
+			Copy(20); // CMC header
+			RelocateLowHigh(64); // pattern addresses
+			break;
+		case ASAPModuleType.Dlt:
+			// DLT/SAP -> DLT
+			break;
+		case ASAPModuleType.Mpt:
+		case ASAPModuleType.Md1:
+		case ASAPModuleType.Md2:
+			// MPT/SAP -> MPT
+			int[5] trackAddr;
+			trackAddr[4] = 0;
+			// instrument addresses, pattern addresses
+			for (int i = 0; i < 32 + 64; i++) {
+				int address = ReadWord();
+				if (address != 0) {
+					address += AddressDiff;
+					if (trackAddr[4] == 0)
+						trackAddr[4] = address;
+				}
+				WriteWord(address);
+			}
+			if (trackAddr[4] == 0)
+				trackAddr[4] = endAddr + 1 + AddressDiff;
+			Copy(256); // frequency tables
+			// track addresses
+			for (int ch = 0; ch < 4; ch++) {
+				int address = Source[SourceOffset + ch] + (Source[SourceOffset + 4 + ch] << 8) + AddressDiff;
+				trackAddr[ch] = address;
+				WriteByte(address & 0xff);
+			}
+			for (int ch = 0; ch < 4; ch++)
+				WriteByte(trackAddr[ch] >> 8);
+			SourceOffset += 8;
+			// tracks
+			if (info.MptSongBugExtra != 0) {
+				// In this format tracks are saved one after another.
+				// Track 0 often ends with a jump instruction "FF-target".
+				// The remaining tracks on this row are ignored, but if they are
+				// "FF-FF", the tracker saves a corrupt file (yet loads it correctly).
+				// The addresses (including the DOS header) are calculated
+				// as if the tracks are stored without their trailing "FF-FF" rows.
+				// However, the composer writes all tracks of same size as track 0.
+				// Here we work around this problem.
+				// I made a similar workaround in SAP Maker 5.0 in 2005,
+				// but it was faulty: SAP Maker applied the fix two bytes early,
+				// which led to a loss of the last row in tracks 1-3.
+				// "FF-FF" was preserved instead and caused a stop instead of the loop.
+				int track0Len = trackAddr[1] - trackAddr[0];
+				Copy(2 + track0Len); // pattern len, tempo, track 0
+				for (int ch = 1; ch < 4; ch++) {
+					int trackLen = trackAddr[ch + 1] - trackAddr[ch];
+					if (trackLen <= track0Len) {
+						Copy(trackLen);
+						SourceOffset += track0Len - trackLen; // strip the extra "FF-FF"
+					}
+					else {
+						// unlikely case
+						Copy(track0Len);
+						for ( ; trackLen > track0Len; trackLen--)
+							WriteByte(0xff); // pad with "FF-FF"
+					}
+				}
+			}
+			break;
+		case ASAPModuleType.Rmt:
+			// RMT/SAP -> RMT
+			int startOffset = SourceOffset;
+			int channels = Source[startOffset + 3] - '0';
+			Copy(8); // RMT header
+			ushort patternLowAddr = ASAPInfo.GetWord(Source, startOffset + 10);
+			ushort patternHighAddr = ASAPInfo.GetWord(Source, startOffset + 12);
+			ushort songAddr = ASAPInfo.GetWord(Source, startOffset + 14);
+			RelocateWords((patternLowAddr - startAddr - 8) >> 1); // 4 pointers, instrument addresses
+			RelocateLowHigh(patternHighAddr - patternLowAddr); // pattern addresses
+			Copy(songAddr - startAddr + startOffset - SourceOffset); // patterns
+			int songEnd = endAddr + 1 - startAddr + startOffset;
+			while (SourceOffset < songEnd) {
+				int songLineLen = Math.Min(channels, songEnd - SourceOffset);
+				if (songLineLen >= 4 && Source[SourceOffset] == 0xfe) {
+					// song jump
+					Copy(2); // 0xfe, line_number
+					RelocateWords(1); // jump address
+					songLineLen -= 4;
+				}
+				Copy(songLineLen);
+			}
+			if (!rmtNames)
+				return;
+			if (sourceEnd >= songEnd + 5)
+				RelocateWords(2); // DOS header of text info: title and instrument names
+			break;
+		case ASAPModuleType.Tmc:
+			// TMC/SAP -> TMC
+			Copy(32); // TMC header
+			RelocateLowHigh(64); // instrument addresses
+			RelocateLowHigh(128); // pattern addresses
+			break;
+		case ASAPModuleType.Tm2:
+			// TM2/SAP -> TM2
+			Copy(128); // TM2 header
+			RelocateBytes(0, 0x280, 128, 0); // instrument addresses low
+			RelocateLowHigh(256); // pattern addresses
+			RelocateBytes(-0x280, 0, 128, 8); // instruments addresses high
+			break;
+		default:
+			assert false;
+		}
+		Copy(sourceEnd - SourceOffset); // copy remaining bytes
+	}
+}
+
 #if !ASAP_ONLY_SAP && !OPENCL
 public abstract class ASAPFileLoader
 {
@@ -317,7 +513,7 @@ public class ASAP
 			break;
 		case ASAPModuleType.Tmc:
 			if (--TmcPerFrameCounter <= 0) {
-				TmcPerFrameCounter = Cpu.Memory[ModuleInfo.GetMusicAddress() + 0x1f];
+				TmcPerFrameCounter = Cpu.Memory[ModuleInfo.Music + 0x1f];
 				Call6502(player + 3);
 			}
 			else
@@ -325,7 +521,7 @@ public class ASAP
 			break;
 		case ASAPModuleType.D15:
 			if (Cpu.Cycle < ASAPInfo.MptSamplesVblkPauseScanlines * 114 // pause samples every frame
-			 || MptSamplesCurrentAddress >> 8 >= Cpu.Memory[ModuleInfo.GetMusicAddress() + 0x10 + CurrentSong]) // sample finished?
+			 || MptSamplesCurrentAddress >> 8 >= Cpu.Memory[ModuleInfo.Music + 0x10 + CurrentSong]) // sample finished?
 				break;
 			int b = Cpu.Memory[MptSamplesCurrentAddress];
 			if (MptSamplesSecondNibble) {
@@ -437,43 +633,45 @@ public class ASAP
 	{
 #endif
 		ModuleInfo.Load(filename, module, moduleLen);
+		Cpu.Memory.Fill(0);
+		int music = ModuleInfo.Music;
 #if !ASAP_ONLY_SAP
+		if (ModuleInfo.Type == ASAPModuleType.D15) {
+			module.CopyTo(0, Cpu.Memory, music, moduleLen);
+			return;
+		}
 		byte[]? playerRoutine = ASAP6502.GetPlayerRoutine(ModuleInfo);
 		if (playerRoutine != null) {
 			int player = ASAPInfo.GetWord(playerRoutine, 2);
-			int playerLastByte = ASAPInfo.GetWord(playerRoutine, 4);
-			int music = ModuleInfo.GetMusicAddress();
-			if (music <= playerLastByte) // FIXME: MPT player has variables at the end
-				throw ASAPFormatException("Module address conflicts with the player routine");
-#if !OPENCL
-			if (ModuleInfo.Type == ASAPModuleType.Md1 || ModuleInfo.Type == ASAPModuleType.Md2) {
-				if (loader == null)
-					throw ASAPFormatException("MD1/MD2 not supported in this ASAP port");
-				ASAPMptSamples() samples;
-				if (!samples.Load(loader, filename))
-					throw ASAPFormatException("Missing D15/D8 file");
-				samples.Relocate(music, music + moduleLen - 5);
-				MptSamplesPage = samples.Content[0];
-				MptSamples15kHz = samples.Is15kHz;
-				samples.Content.CopyTo(0, Cpu.Memory, (MptSamplesPage << 8) - 0x20, samples.ContentLength);
-			}
-#endif
-			Cpu.Memory[0x4c00] = 0; // for 11270-byte DLT
 			if (ModuleInfo.Type == ASAPModuleType.Fc)
 				module.CopyTo(0, Cpu.Memory, music, moduleLen);
-			else
-				module.CopyTo(6, Cpu.Memory, music, moduleLen - 6);
+			else {
+				int musicLow = ModuleInfo.Type == ASAPModuleType.Tm2 ? 0x1400 : 0x1000; // must be synchronized with 6502/*.lst
+				if (music < musicLow)
+					ModuleInfo.Music = music = musicLow;
+#if !OPENCL
+				if (ModuleInfo.Type == ASAPModuleType.Md1 || ModuleInfo.Type == ASAPModuleType.Md2) {
+					if (loader == null)
+						throw ASAPFormatException("MD1/MD2 not supported in this ASAP port");
+					ASAPMptSamples() samples;
+					if (!samples.Load(loader, filename))
+						throw ASAPFormatException("Missing D15/D8 file");
+					samples.Relocate(music, music + moduleLen - 5);
+					MptSamplesPage = samples.Content[0];
+					MptSamples15kHz = samples.Is15kHz;
+					samples.Content.CopyTo(0, Cpu.Memory, (MptSamplesPage << 8) - 0x20, samples.ContentLength);
+				}
+#endif
+				ASAPModuleTransfer() trans = { Source = module, SourceOffset = 0, Output = Cpu.Memory, OutputOffset = music };
+				trans.TransferModule(ModuleInfo, moduleLen, false, false);
+			}
+			int playerLastByte = ASAPInfo.GetWord(playerRoutine, 4);
 			playerRoutine.CopyTo(6, Cpu.Memory, player, playerLastByte + 1 - player);
 			if (ModuleInfo.Player < 0)
 				ModuleInfo.Player = player;
 			return;
 		}
-		if (ModuleInfo.Type == ASAPModuleType.D15) {
-			module.CopyTo(0, Cpu.Memory, ModuleInfo.GetMusicAddress(), moduleLen);
-			return;
-		}
 #endif
-		Cpu.Memory.Fill(0);
 		int moduleIndex = ModuleInfo.HeaderLen + 2;
 		while (moduleIndex + 5 <= moduleLen) {
 			int startAddr = ASAPInfo.GetWord(module, moduleIndex);
@@ -516,7 +714,16 @@ public class ASAP
 		throw ASAPFormatException("INIT routine didn't return");
 	}
 
-	void RestartSong!()
+	/// Mutes the selected POKEY channels.
+	public void MutePokeyChannels!(
+		/// An 8-bit mask which selects POKEY channels to be muted.
+		int mask)
+	{
+		Pokeys.BasePokey.Mute(mask);
+		Pokeys.ExtraPokey.Mute(mask >> 4);
+	}
+
+	void RestartSong!(int muteMask)
 		throws ASAPFormatException
 	{
 		NextPlayerCycle = Pokey.NeverCycle;
@@ -531,8 +738,9 @@ public class ASAP
 		Covox[2] = 0x80;
 		Covox[3] = 0x80;
 		Pokeys.Initialize(ModuleInfo.IsNtsc(), ModuleInfo.GetChannels() > 1, CurrentSampleRate);
+		MutePokeyChannels(0xff);
 		int player = ModuleInfo.Player;
-		int music = ModuleInfo.GetMusicAddress();
+		int music = ModuleInfo.Music;
 		switch (ModuleInfo.Type) {
 		case ASAPModuleType.SapB:
 			Do6502Init(ModuleInfo.GetInitAddress(), CurrentSong, 0, 0);
@@ -586,7 +794,7 @@ public class ASAP
 			Do6502Init(player, CurrentSong, 0, 0);
 			break;
 		case ASAPModuleType.D15:
-			MptSamplesCurrentAddress = Cpu.Memory[ModuleInfo.GetMusicAddress() + CurrentSong] << 8;
+			MptSamplesCurrentAddress = Cpu.Memory[ModuleInfo.Music + CurrentSong] << 8;
 			MptSamplesSecondNibble = false;
 			// make 6502 idle
 			const int escapeAddr = 0xd200;
@@ -604,8 +812,7 @@ public class ASAP
 #endif
 #endif
 		}
-		Pokeys.BasePokey.EndSongInit();
-		Pokeys.ExtraPokey.EndSongInit();
+		MutePokeyChannels(muteMask);
 		NextPlayerCycle = 0;
 	}
 
@@ -621,16 +828,7 @@ public class ASAP
 			throw ASAPArgumentException("Song number out of range");
 		CurrentSong = song;
 		CurrentDuration = duration;
-		RestartSong();
-	}
-
-	/// Mutes the selected POKEY channels.
-	public void MutePokeyChannels!(
-		/// An 8-bit mask which selects POKEY channels to be muted.
-		int mask)
-	{
-		Pokeys.BasePokey.Mute(mask);
-		Pokeys.ExtraPokey.Mute(mask >> 4);
+		RestartSong(0);
 	}
 
 	/// Returns current playback position in blocks.
@@ -652,7 +850,7 @@ public class ASAP
 		throws ASAPFormatException
 	{
 		if (block < BlocksPlayed)
-			RestartSong();
+			RestartSong(Pokeys.BasePokey.GetMute() | Pokeys.ExtraPokey.GetMute() << 4);
 		while (BlocksPlayed + Pokeys.ReadySamplesEnd < block) {
 			BlocksPlayed += Pokeys.ReadySamplesEnd;
 			DoFrame();

@@ -43,9 +43,9 @@ win32/asapconv-no-lame.exe win32/x64/asapconv-no-lame.exe: $(call src,asapconv.c
 	$(WIN_CC)
 CLEAN += win32/asapconv-no-lame.exe win32/x64/asapconv-no-lame.exe
 
-win32/msvc/asapconv.exe: $(call src,asapconv.c asap-stdio.[ch] asap.[ch])
+win32/msvc/asapconv.exe win32/msvc/x64/asapconv.exe: $(call src,asapconv.c asap-stdio.[ch] asap.[ch])
 	$(WIN_CL) -DHAVE_LIBMP3LAME -DHAVE_LIBMP3LAME_DLL
-CLEAN += win32/msvc/asapconv.exe
+CLEAN += win32/msvc/asapconv.exe win32/msvc/x64/asapconv.exe
 
 # lib
 

@@ -77,7 +77,7 @@ static BYTE *playing_module;
 static int playing_module_len;
 static int duration;
 
-static int playlistLength;
+/*static int playlistLength;*/
 
 static HANDLE thread_handle = NULL;
 static volatile bool thread_run = false;
@@ -173,14 +173,12 @@ static int extractSongNumber(const wchar_t *s, wchar_t *filename)
 static BOOL isATR(const wchar_t *filename)
 {
 	LPCWSTR ext = FindPathExtension(filename);
-	return (SameStr(ext, L"atr"));/*/
-	size_t len = strlen(filename);
-	return len >= 4 && stricmp(filename + len - 4, TEXT(".atr")) == 0;/**/
+	return (SameStr(ext, L"atr"));
 }
 
+#if 0	// TODO
 static void addFileSongs(HWND playlistWnd, fileinfo *fi, const ASAPInfo *info, int *index)
 {
-#if 0
 	char *p = fi->file + strlen(fi->file);
 	for (int song = 0; song < ASAPInfo_GetSongs(info); song++) {
 		sprintf(p, ",%d", song + 1);
@@ -191,12 +189,10 @@ static void addFileSongs(HWND playlistWnd, fileinfo *fi, const ASAPInfo *info, i
 		cds.cbData = sizeof(fileinfo);
 		SendMessage(playlistWnd, WM_COPYDATA, 0, (LPARAM) &cds);
 	}
-#endif
 }
 
 static void expandFileSongs(HWND playlistWnd, int index, ASAPInfo *info)
 {
-#if 0	// TODO
 	const wchar_t *fn = (const wchar_t *) SendMessage(plugin.hMainWindow, WM_WA_IPC, index, IPC_GETPLAYLISTFILEW);
 	fileinfoW fi;
 	int song = extractSongNumber(fn, fi.file);
@@ -254,21 +250,17 @@ static void expandFileSongs(HWND playlistWnd, int index, ASAPInfo *info)
 				SendMessage(playlistWnd, WM_WA_IPC, IPC_PE_DELETEINDEX, index);
 		}
 	}
-#endif
 }
 
-#if 0
 static INT_PTR CALLBACK progressDialogProc(HWND hDlg, UINT uMsg, WPARAM wParam, LPARAM lParam)
 {
 	if (uMsg == WM_INITDIALOG)
 		SendDlgItemMessage(hDlg, IDC_PROGRESS, PBM_SETRANGE, 0, MAKELPARAM(0, playlistLength));
 	return FALSE;
 }
-#endif
 
 static void expandPlaylistSongs(void)
 {
-#if 0
 	static bool processing = false;
 	if (processing)
 		return;
@@ -288,8 +280,8 @@ static void expandPlaylistSongs(void)
 	DestroyWindow(progressWnd);
 	ASAPInfo_Delete(info);
 	processing = false;
-#endif
 }
+#endif
 
 static int init(void)
 {
@@ -439,8 +431,7 @@ static DWORD WINAPI playThread(LPVOID dummy)
 			if (buffered_bytes <= 0) {
 				plugin.outMod->CanWrite();
 				if (!plugin.outMod->IsPlaying()) {
-					PostEOF();/*/
-					PostMessage(plugin.hMainWindow, WM_WA_MPEG_EOF, 0, 0);/**/
+					PostEOF();
 					break;
 				}
 				SleepEx(10, TRUE);
@@ -561,7 +552,7 @@ static void stop(void)
 {
 	thread_run = false;
 	// wait max 10 seconds
-	WaitForThreadToClose(&thread_handle, 10 * 1000/*/INFINITE/**/);
+	WaitForThreadToClose(&thread_handle, 10 * 1000);
 
 	if (plugin.outMod && plugin.outMod->Close)
 	{
@@ -1194,7 +1185,7 @@ extern "C" __declspec(dllexport) intptr_t winampGetExtendedRead_openW(const wcha
 
 					if (ASAP_PlaySong(e->asap, song, getSongDurationInternal(e->info, song, e->asap)))
 					{
-						ASAP_MutePokeyChannels(e->asap, 0/*/mute_mask/**/);
+						ASAP_MutePokeyChannels(e->asap, 0);
 
 						*bps = BITS_PER_SAMPLE;
 						*nch = ASAPInfo_GetChannels(e->info);
@@ -1278,7 +1269,6 @@ extern "C" __declspec(dllexport) int GetSubSongInfo(const wchar_t* filename)
 	{
 		AATR *disk = AATRStdio_New(fn);
 		if (disk != NULL) {
-			bool found = false;
 			AATRRecursiveLister *lister = AATRRecursiveLister_New();
 			if (lister != NULL) {
 				AATRFileStream *stream = AATRFileStream_New();

@@ -60,7 +60,7 @@ class DurationParser
 	int Position;
 	nint Length;
 
-	0 .. 9 ParseDigit!(int max)
+	byte ParseDigit!(int max)
 		throws ASAPFormatException
 	{
 		if (Position >= Length)
@@ -169,11 +169,12 @@ public class ASAPInfo
 	internal ASAPModuleType Type;
 	internal ASAPModuleType OriginalType;
 	int Fastplay;
-	int Music;
+	internal int Music;
 	int Init;
 	internal int Player;
 	int CovoxAddr;
 	internal int HeaderLen;
+	internal int MptSongBugExtra;
 	internal byte[MaxSongs] SongPos;
 
 	public ASAPInfo()
@@ -407,9 +408,27 @@ public class ASAPInfo
 			throw ASAPFormatException("No songs found");
 	}
 
+	static int GetMptTrackAddress(byte[] module, int ch) => module[0x1c6 + ch] + (module[0x1ca + ch] << 8);
+
+	static int GetMptFirstInstrOrPatternAddr(byte[] module)
+	{
+		for (int offset = 6; offset < 0xc6; offset += 2) {
+			int addr = GetWord(module, offset);
+			if (addr != 0)
+				return addr;
+		}
+		return GetWord(module, 4) + 1;
+	}
+
+	static int GetMptTrackLen(byte[] module, int ch)
+	{
+		int endAddr = ch == 3 ? GetMptFirstInstrOrPatternAddr(module) : GetMptTrackAddress(module, ch + 1);
+		return endAddr - GetMptTrackAddress(module, ch);
+	}
+
 	void ParseMptSong!(byte[] module, bool[]! globalSeen, int songLen, int pos)
 	{
-		int addrToOffset = GetWord(module, 2) - 6;
+		int addrToOffset = GetWord(module, 2) - 6 - MptSongBugExtra;
 		int tempo = module[0x1cf];
 		int playerCalls = 0;
 		byte[256] seen = 0;
@@ -424,19 +443,21 @@ public class ASAPInfo
 			}
 			seen[pos] = SeenThisCall;
 			globalSeen[pos] = true;
-			int i = module[0x1d0 + pos * 2];
+			int i = module[0x1d0 + (pos << 1)];
 			if (i == 0xff) {
-				pos = module[0x1d1 + pos * 2];
+				pos = module[0x1d1 + (pos << 1)];
 				continue;
 			}
 			int ch;
 			for (ch = 3; ch >= 0; ch--) {
-				i = module[0x1c6 + ch] + (module[0x1ca + ch] << 8) - addrToOffset;
-				i = module[i + pos * 2];
+				if (MptSongBugExtra == 0)
+					i = GetMptTrackAddress(module, ch) - addrToOffset;
+				else
+					i = 0x1d0 + ch * GetMptTrackLen(module, 0);
+				i = module[i + (pos << 1)];
 				if (i >= 0x40)
 					break;
-				i <<= 1;
-				i = GetWord(module, 0x46 + i);
+				i = GetWord(module, 0x46 + (i << 1));
 				patternOffset[ch] = i == 0 ? 0 : i - addrToOffset;
 				blankRowsCounter[ch] = 0;
 			}
@@ -485,14 +506,17 @@ public class ASAPInfo
 		if (moduleLen < 0x1d0)
 			throw ASAPFormatException("Module too short");
 		OriginalType = Type = type;
+		int track0Len = GetMptTrackLen(module, 0);
+		if (7 + GetWord(module, 4) - GetWord(module, 2) == moduleLen)
+			MptSongBugExtra = 0;
+		else {
+			MptSongBugExtra = 3 * track0Len + GetMptTrackAddress(module, 1) - GetMptFirstInstrOrPatternAddr(module);
+			moduleLen -= MptSongBugExtra;
+		}
 		ParseModule(module, moduleLen);
-		int track0Addr = GetWord(module, 2) + 0x1ca;
-		if (module[0x1c6] + (module[0x1ca] << 8) != track0Addr)
+		if (GetMptTrackAddress(module, 0) != GetWord(module, 2) + 0x1ca)
 			throw ASAPFormatException("Invalid address of the first track");
-		// Calculate the length of the first track. Address of the second track minus
-		// address of the first track equals the length of the first track in bytes.
-		// Divide by two to get number of track positions.
-		int songLen = (module[0x1c7] + (module[0x1cb] << 8) - track0Addr) >> 1;
+		int songLen = track0Len >> 1;
 		if (songLen > 0xfe)
 			throw ASAPFormatException("Song too long");
 		// `globalSeen[i] == true` if the track position `i` has been processed
@@ -1246,13 +1270,16 @@ public class ASAPInfo
 	static bool ValidateSap(byte[] module, int moduleLen)
 		=> moduleLen >= 30 && HasStringAt(module, 0, "SAP\r\n");
 
+	internal int GetFirstBlockLen(byte[] module)
+		=> GetWord(module, HeaderLen + 4) - GetWord(module, HeaderLen + 2) + 7;
+
 	internal const int RmtInit = 0xc80;
 
 	internal int GetRmtSapOffset(byte[] module, int moduleLen)
 	{
 		if (Player != 0x3403)
 			return -1;
-		int offset = HeaderLen + GetWord(module, HeaderLen + 4) - GetWord(module, HeaderLen + 2) + 7;
+		int offset = HeaderLen + GetFirstBlockLen(module);
 		if (offset + 6 >= moduleLen || module[offset + 4] != 'R' || module[offset + 5] != 'M' || module[offset + 6] != 'T')
 			return -1;
 		return offset;

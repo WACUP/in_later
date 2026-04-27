@@ -12,8 +12,11 @@ static void CiString_Assign(char **str, char *value)
 static char *CiString_Substring(const char *str, int len)
 {
 	char *p = malloc(len + 1);
-	memcpy(p, str, len);
-	p[len] = '\0';
+	if (p)
+	{
+		memcpy(p, str, len);
+		p[len] = '\0';
+	}
 	return p;
 }
 
@@ -23,8 +26,11 @@ static void CiString_AppendSubstring(char **str, const char *suffix, size_t suff
 		return;
 	size_t prefixLen = *str == NULL ? 0 : strlen(*str);
 	*str = realloc(*str, prefixLen + suffixLen + 1);
-	memcpy(*str + prefixLen, suffix, suffixLen);
-	(*str)[prefixLen + suffixLen] = '\0';
+	if (*str)
+	{
+		memcpy(*str + prefixLen, suffix, suffixLen);
+		(*str)[prefixLen + suffixLen] = '\0';
+	}
 }
 
 static void CiString_Append(char **str, const char *suffix)
