@@ -695,9 +695,10 @@ extern "C" __declspec(dllexport) int winampUninstallPlugin(HINSTANCE hDllInst, H
 }
 
 // TODO localise
-extern "C" const wchar_t* pExtList[18] = { L"SAP", L"CMC", L"CM3", L"CMR", L"CMS", L"DMC",
-										   L"DLT", L"MPT", L"MPD", L"MD1", L"MD2", L"RMT",
-										   L"TMC", L"TM2", L"FC", L"ATR", L"D15", L"D8" };
+extern "C" const wchar_t* pExtList[19] = { L"SAP", L"CMC", L"CM3", L"CMR", L"CMS",
+										   L"DMC", L"DLT", L"MPT", L"MPD", L"MD1",
+										   L"MD2", L"RMT", L"TMC", L"TM8", L"TM2",
+										   L"FC", L"ATR", L"D15", L"D8" };
 extern "C" const wchar_t* pExtDescList[ARRAYSIZE(pExtList)] =
 {
 	L"Slight Atari Player File",
@@ -712,6 +713,7 @@ extern "C" const wchar_t* pExtDescList[ARRAYSIZE(pExtList)] =
 	L"Music ProTracker File",
 	L"Music ProTracker File",
 	L"Raster Music Tracker File",
+	L"Theta Music Composer 1.x File",
 	L"Theta Music Composer 1.x File",
 	L"Theta Music Composer 2.x File",
 	L"Future Composer File",
