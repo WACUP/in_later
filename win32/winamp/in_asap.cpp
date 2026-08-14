@@ -23,7 +23,6 @@
 
 #include <windows.h>
 #include <stdlib.h>
-#include <strsafe.h>
 #include <commctrl.h>
 #include <stdbool.h>
 #include <stdio.h>
@@ -37,6 +36,7 @@
 #include "api.h"
 #include <loader/loader/paths.h>
 #include <loader/loader/utils.h>
+#include <loader/hook/lock.h>
 
 #include "aatr-stdio.h"
 #include "asap.h"
@@ -173,7 +173,7 @@ static int extractSongNumber(const wchar_t *s, wchar_t *filename)
 static BOOL isATR(const wchar_t *filename)
 {
 	LPCWSTR ext = FindPathExtension(filename);
-	return (SameStr(ext, L"atr"));
+	return (ext && !FastCompare(ext, L"atr"));
 }
 
 #if 0	// TODO
@@ -482,13 +482,15 @@ static int play(const in_char *fn)
 		if (!loadModule(filename, playing_module, &playing_module_len, NULL))
 			return -1;
 
-		EnterCriticalSection(&g_info_cs);
+		LockGuard lock(g_info_cs);
+
 		if (playing_filename_with_song)
 		{
 			SafeFree(playing_filename_with_song);
 		}
 		playing_filename_with_song = AutoCharFnDup(filename);
-		LeaveCriticalSection(&g_info_cs);
+
+		lock.Release();
 
 		if (!ASAP_Load(asap, playing_filename_with_song, playing_module, playing_module_len))
 			return 1;
@@ -1056,7 +1058,7 @@ extern "C" __declspec(dllexport) int winampGetExtendedFileInfoW(const wchar_t *f
 
 	// if we're playing then try to get the metadata
 	// from that copy to save loading a new instance
-	EnterCriticalSection(&g_info_cs);
+	const LockGuard lock(g_info_cs);
 
 	const bool reset = SameStrA(data, "reset");
 	if (!reset)
@@ -1065,11 +1067,8 @@ extern "C" __declspec(dllexport) int winampGetExtendedFileInfoW(const wchar_t *f
 		const bool playing = SameStrA(playing_file, playing_filename_with_song);
 		if (playing && (playing_module_len > 0))
 		{
-			const int ret = get_metadata(playing_file, ASAP_GetInfo(asap),
-										 title_song, playing_module, playing_module_len,
-										 data, dest, destlen);
-			LeaveCriticalSection(&g_info_cs);
-			return ret;
+			return get_metadata(playing_file, ASAP_GetInfo(asap), title_song,
+					playing_module, playing_module_len, data, dest, destlen);
 		}
 	}
 
@@ -1136,10 +1135,8 @@ extern "C" __declspec(dllexport) int winampGetExtendedFileInfoW(const wchar_t *f
 		}
 	}
 
-	const int ret = (((title_module_len > 0) && title_info) ? get_metadata(file, title_info,
-					 title_song, title_module, title_module_len, data, dest, destlen) : 0);
-	LeaveCriticalSection(&g_info_cs);
-	return ret;
+	return (((title_module_len > 0) && title_info) ? get_metadata(file, title_info,
+			 title_song, title_module, title_module_len, data, dest, destlen) : 0);
 }
 
 
