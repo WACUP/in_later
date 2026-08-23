@@ -81,7 +81,7 @@ static int duration;
 
 static HANDLE thread_handle = NULL;
 static volatile bool thread_run = false;
-static bool paused = false;
+static bool is_paused = false;
 static int seek_needed;
 
 //static int title_song;
@@ -527,9 +527,11 @@ static int play(const in_char *fn)
 	return -1;
 }
 
+#ifndef _WIN64
 static void pause(void)
 {
-	paused = true;
+	is_paused = true;
+
 	if (plugin.outMod)
 	{
 		plugin.outMod->Pause(1);
@@ -538,16 +540,28 @@ static void pause(void)
 
 static void unPause(void)
 {
-	paused = false;
+	is_paused = false;
+
 	if (plugin.outMod)
 	{
 		plugin.outMod->Pause(0);
 	}
 }
+#else
+static void setPause(const int paused)
+{
+	is_paused = paused;
+
+	if (plugin.outMod)
+	{
+		plugin.outMod->Pause(paused);
+	}
+}
+#endif
 
 static int isPaused(void)
 {
-	return paused;
+	return is_paused;
 }
 
 static void stop(void)
@@ -658,8 +672,12 @@ In_Module plugin = {
 	0/*infoBox*/,
 	isOurFile,
 	play,
+#ifndef _WIN64
 	pause,
 	unPause,
+#else
+	setPause,
+#endif
 	isPaused,
 	stop,
 	getLength,
