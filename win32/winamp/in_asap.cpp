@@ -461,7 +461,11 @@ static DWORD WINAPI playThread(LPVOID dummy)
 	return 0;
 }
 
+#ifndef _WIN64
 static int play(const in_char *fn)
+#else
+static int play(const in_char *fn, const int seek_offset)
+#endif
 {
 	read_config();
 
@@ -517,7 +521,12 @@ static int play(const in_char *fn)
 		plugin.VisInitInfo(maxlatency, sample_rate, channels);
 #endif
 		plugin.outMod->SetVolume(-666);
+
+#ifndef _WIN64
 		seek_needed = -1;
+#else
+		seek_needed = seek_offset;
+#endif
 
 		thread_handle = StartPlaybackThread(playThread, 0, 0, NULL);
 		thread_run = (thread_handle != NULL);
