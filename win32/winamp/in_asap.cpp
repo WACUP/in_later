@@ -1189,7 +1189,7 @@ struct ExtendedRead
 	int module_len = 0;
 };
 
-extern "C" __declspec(dllexport) intptr_t winampGetExtendedRead_openW(const wchar_t* fn, int* size, int* bps, int* nch, int* srate)
+extern "C" __declspec(dllexport) intptr_t winampGetExtendedRead_openW(const wchar_t* fn, size_t* size, int* bps, int* nch, int* srate)
 {
 	ExtendedRead* e = new ExtendedRead();
 	if (e)
@@ -1216,7 +1216,7 @@ extern "C" __declspec(dllexport) intptr_t winampGetExtendedRead_openW(const wcha
 						*bps = BITS_PER_SAMPLE;
 						*nch = ASAPInfo_GetChannels(e->info);
 						*srate = sample_rate;
-						*size = -1; // TODO need to get number of samples, etc
+						*size = (size_t)-1; // TODO need to get number of samples, etc
 						return reinterpret_cast<intptr_t>(e);
 					}
 				}
