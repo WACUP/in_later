@@ -439,7 +439,7 @@ static DWORD WINAPI playThread(LPVOID dummy)
 			}
 			int t = plugin.outMod->GetWrittenTime();
 			plugin.SAAddPCMData(buffer, channels, BITS_PER_SAMPLE, t);
-			/*plugin.VSAAddPCMData(buffer, channels, BITS_PER_SAMPLE, t);*/
+
 #if SUPPORT_EQUALIZER
 			t = buffered_bytes / (channels * (BITS_PER_SAMPLE / 8));
 			t = plugin.dsp_dosamples((short *) buffer, t, BITS_PER_SAMPLE, channels, sample_rate);
@@ -599,12 +599,12 @@ static int getOutputTime(void)
 	return (plugin.outMod ? plugin.outMod->GetOutputTime() : 0);
 }
 
-static void setOutputTime(int time_in_ms)
+static void setOutputTime(const int time_in_ms)
 {
 	seek_needed = time_in_ms;
 }
 
-static void setVolume(int volume)
+static void setVolume(const int volume)
 {
 	if (plugin.outMod && plugin.outMod->SetVolume)
 	{
@@ -612,7 +612,7 @@ static void setVolume(int volume)
 	}
 }
 
-static void setPan(int pan)
+static void setPan(const int pan)
 {
 	if (plugin.outMod && plugin.outMod->SetPan)
 	{
@@ -827,8 +827,9 @@ static int get_metadata(const char* filename, const ASAPInfo* info, int song,
 		song = ASAPInfo_GetDefaultSong(info);
 	}
 
-	const bool length_seconds = SameStrA(data, "length_seconds");
-	if (length_seconds || SameStrA(data, "length"))
+	const bool length = SameStrNA(data, "length", 6),
+			   length_seconds = (length ? SameStrA((data + 6), "_seconds") : false);
+	if (length || length_seconds)
 	{
 		int ret = 0;
 		const int length = getSongDuration(info, song);
