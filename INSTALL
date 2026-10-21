@@ -1,4 +1,4 @@
-﻿Build instructions
+Build instructions
 ==================
 
 Required tools
@@ -23,7 +23,7 @@ Getting the source code
 
 a. Download and uncompress 'asap-*.tar.gz'
 
-b. git clone git://git.code.sf.net/p/asap/code asap-code
+b. git clone https://github.com/pfusik/asap.git
 
 
 Building asapconv and libasap on Unix-like systems

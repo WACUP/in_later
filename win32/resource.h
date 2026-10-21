@@ -4,7 +4,7 @@
 //
 #define ASAPInfo_VERSION_MINOR          0
 #define IDS_ABOUT_TITLE                 0
-#define ASAPInfo_VERSION_MICRO          0
+#define ASAPInfo_VERSION_MICRO          1
 #define ASAPWriter_MAX_SAVE_EXTS        3
 #define ASAPInfo_VERSION_MAJOR          8
 #define ASAPWriter_MAX_DURATION_LENGTH  9

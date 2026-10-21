@@ -119,13 +119,13 @@ class input_asap : public input_stubs
 		int duration = ASAPInfo_GetDuration(info, song);
 		if (duration < 0) {
 			if (play)
-				ASAP_DetectSilence(asap, silence_seconds);
-			return 1000 * song_length;
+				ASAP_DetectSilence(asap, static_cast<int>(silence_seconds));
+			return 1000 * static_cast<int>(song_length);
 		}
 		if (play)
 			ASAP_DetectSilence(asap, 0);
 		if (play_loops && ASAPInfo_GetLoop(info, song))
-			return 1000 * song_length;
+			return 1000 * static_cast<int>(song_length);
 		return duration;
 	}
 
@@ -241,7 +241,7 @@ public:
 
 	void decode_initialize(t_uint32 p_subsong, unsigned p_flags, abort_callback &p_abort) const
 	{
-		ASAP_SetSampleRate(asap, sample_rate);
+		ASAP_SetSampleRate(asap, static_cast<int>(sample_rate));
 		int duration = get_song_duration(p_subsong, true);
 		if (!ASAP_PlaySong(asap, p_subsong, duration))
 			throw exception_io_unsupported_format();
@@ -252,7 +252,7 @@ public:
 
 	bool decode_run(audio_chunk &p_chunk, abort_callback &p_abort) const
 	{
-		ASAP_MutePokeyChannels(asap, mute_mask);
+		ASAP_MutePokeyChannels(asap, static_cast<int>(mute_mask));
 
 		int channels = ASAPInfo_GetChannels(ASAP_GetInfo(asap));
 		int buffered_bytes = BUFFERED_BLOCKS * channels * (BITS_PER_SAMPLE / 8);
@@ -325,7 +325,8 @@ static INT_PTR CALLBACK settings_dialog_proc(HWND hDlg, UINT uMsg, WPARAM wParam
 {
 	switch (uMsg) {
 	case WM_INITDIALOG:
-		settingsDialogSet(hDlg, sample_rate, song_length, silence_seconds, play_loops, mute_mask);
+		settingsDialogSet(hDlg, static_cast<int>(sample_rate), static_cast<int>(song_length),
+			static_cast<int>(silence_seconds), play_loops, static_cast<int>(mute_mask));
 		return TRUE;
 	case WM_COMMAND:
 		switch (wParam) {
@@ -706,11 +707,6 @@ class archive_atr : public archive_impl
 {
 public:
 
-	bool supports_content_types() override
-	{
-		return false;
-	}
-
 	const char *get_archive_type() override
 	{
 		return "atr";
@@ -734,7 +730,7 @@ public:
 		p_out = new service_impl_t<file_atr>(archive, file);
 	}
 
-	void archive_list(const char *path, const service_ptr_t<file> &p_reader, archive_callback &p_out, bool p_want_readers) override
+	void archive_list_v5(const char *path, file::ptr readerOptional, callback &p_out, uint32_t flags, abort_callback &p_abort) override
 	{
 		if (!_extract_native_path_ptr(path))
 			throw exception_io_data();
@@ -752,13 +748,13 @@ public:
 			const char *fn = AATRRecursiveLister_NextFile(lister);
 			if (fn == nullptr)
 				break;
-			t_filestats stats = { filesize_invalid, filetimestamp_invalid };
+			t_filestats2 stats;
 			service_ptr_t<file> p_file;
-			if (p_want_readers) {
+			if (flags & flagReaders) {
 				p_file = new service_impl_t<file_atr>(path, fn);
 			}
 			archive_impl::g_make_unpack_path(url, path, fn, "atr");
-			if (!p_out.on_entry(this, url, stats, p_file))
+			if (!p_out.on_entry(url, stats, p_file))
 				break;
 		}
 		AATRRecursiveLister_Delete(lister);

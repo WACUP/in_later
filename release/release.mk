@@ -5,7 +5,7 @@ GREP = @grep -H
 
 # no user-configurable paths below this line
 
-VERSION = 8.0.0
+VERSION = 8.0.1
 
 ifndef DO
 $(error Use "Makefile" instead of "release.mk")
@@ -54,7 +54,8 @@ ifdef FOX_CODESIGNING_IDENTITY
 	codesign --options runtime -f -s $(FOX_CODESIGNING_IDENTITY) release/osx/asapconv
 endif
 	$(DO)hdiutil create -volname asap-$(VERSION)-macos -srcfolder release/osx -format UDBZ -fs HFS+ -imagekey bzip2-level=3 -ov $@
-	/Applications/Xcode.app/Contents/Developer/usr/bin/notarytool submit --keychain-profile foxnotary $@
+	xcrun notarytool submit --wait --keychain-profile foxnotary $@
+	xcrun stapler staple $@
 
 release/osx/libasap_plugin.dylib: libasap_plugin.dylib
 	$(DO)strip -o $@ -x $< && chmod 644 $@

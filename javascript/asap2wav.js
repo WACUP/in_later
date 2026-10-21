@@ -1,7 +1,7 @@
 /*
  * asap2wav.js - converter of ASAP-supported formats to WAV files
  *
- * Copyright (C) 2009-2025 Piotr Fusik
+ * Copyright (C) 2009-2026 Piotr Fusik
  *
  * This file is part of ASAP (Another Slight Atari Player),
  * see http://asap.sourceforge.net
@@ -21,7 +21,7 @@
  * 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
  */
 
-import fs from "fs";
+import fs from "node:fs";
 import { ASAP, ASAPInfo, ASAPSampleFormat } from "./asap.js";
 
 function printHelp()

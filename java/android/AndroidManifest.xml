@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
-	package="net.sf.asap" android:versionCode="800" android:versionName="8.0.0" android:installLocation="auto">
-	<uses-sdk android:minSdkVersion="21" android:targetSdkVersion="36" />
+	package="net.sf.asap" android:versionCode="801" android:versionName="8.0.1" android:installLocation="auto">
+	<uses-sdk android:minSdkVersion="21" android:targetSdkVersion="37" />
 	<uses-feature android:name="android.hardware.touchscreen" android:required="false" />
 	<uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
 	<uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />

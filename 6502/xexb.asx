@@ -91,9 +91,7 @@ nmi
 	rti
 
 vcount_wrap	dta	156,131
-init	dta	{jmp 0}
-	opt	o-
-	dta	a(0)
+init	jmp	0
 player	jmp	0
 song	dta	0
 fastplay_low_bit	dta	0

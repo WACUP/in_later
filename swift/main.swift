@@ -1,7 +1,7 @@
 /*
  * main.swift - converter of ASAP-supported formats to WAV files
  *
- * Copyright (C) 2021-2023  Piotr Fusik
+ * Copyright (C) 2021-2026  Piotr Fusik
  *
  * This file is part of ASAP (Another Slight Atari Player),
  * see http://asap.sourceforge.net
@@ -76,7 +76,7 @@ func processFile(_ inputFilename : String) throws
 		}
 		try asap.playSong(song, duration)
 		asap.mutePokeyChannels(muteMask)
-		let outputFilename = outputFilenameOption ?? inputFilename.deletingPathExtension.appendingPathExtension(outputHeader ? "wav" : "raw")!
+		let outputFilename = outputFilenameOption ?? ((inputFilename as NSString).deletingPathExtension as NSString).appendingPathExtension(outputHeader ? "wav" : "raw")!
 		let buffer = ArrayRef<UInt8>(repeating: 0, count: 8192)
 		if let f = OutputStream(toFileAtPath: outputFilename, append: false) {
 			f.open()

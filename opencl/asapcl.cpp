@@ -24,6 +24,7 @@
 #include <cstdint>
 #include <cstdio>
 #include <cstring>
+#include <ctime>
 #include <memory>
 #include <vector>
 
@@ -38,6 +39,15 @@ void check_error(int err)
 		fprintf(stderr, "OpenCL error %d\n", err);
 		exit(1);
 	}
+}
+
+static void measure(const char *name)
+{
+	static time_t last_time = 0;
+	time_t t = time(nullptr);
+	if (name != nullptr)
+		fprintf(stderr, "%s in %d seconds\n", name, static_cast<int>(t - last_time));
+	last_time = t;
 }
 
 struct ASAP_Workload
@@ -91,7 +101,9 @@ int main(int argc, char **argv)
 	cl_program program = clCreateProgramWithSource(context, 1, &source, nullptr, &err);
 	check_error(err);
 
+	measure(nullptr);
 	err = clBuildProgram(program, 1, &device, "-cl-std=CL2.0", nullptr, nullptr);
+	measure("Compiled");
 	if (err == CL_BUILD_PROGRAM_FAILURE) {
 		check_error(clGetProgramBuildInfo(program, device, CL_PROGRAM_BUILD_LOG, 0, nullptr, &size));
 		std::unique_ptr<char[]> log(new char[size]);
@@ -173,6 +185,7 @@ int main(int argc, char **argv)
 	check_error(clEnqueueReadBuffer(queue, wavs_buffer, false, 0, wavs_len, wavs.get(), 0, nullptr, nullptr));
 
 	check_error(clFinish(queue));
+	measure("Emulated");
 	check_error(clReleaseMemObject(workloads_buffer));
 	check_error(clReleaseMemObject(wavs_buffer));
 	check_error(clReleaseMemObject(modules_buffer));

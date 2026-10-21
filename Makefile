@@ -2,11 +2,7 @@ prefix := /usr/local
 srcdir := $(dir $(lastword $(MAKEFILE_LIST)))
 bindir = $(prefix)/bin
 libdir = $(prefix)/lib
-CC = gcc
-CFLAGS = -O2 -Wall
-CPPFLAGS =
-LDFLAGS = -s
-AR = ar
+CFLAGS ?= -O2 -Wall
 ARFLAGS = rc
 DO_CC = $(DO)$(CC) $(CFLAGS) $(CPPFLAGS) -o $@ $(if $(filter %.so,$@),-shared -fPIC) $(INCLUDEOPTS) $(filter %.c,$^) $(LDFLAGS) -lm
 DO_AR = $(DO)$(AR) $(ARFLAGS) $@ $^
@@ -29,6 +25,9 @@ ifdef V
 DO = mkdir -p $(@D) && 
 else
 DO = @echo $@ && mkdir -p $(@D) && 
+endif
+ifeq ($(OS),Windows_NT)
+EXEEXT = .exe
 endif
 src = $(addprefix $(srcdir),$(1:.[ch]=.c) $(patsubst %.[ch],%.h,$(filter %.[ch],$(1))))
 INCLUDEOPTS = $(patsubst %/,-I%,$(sort $(dir $(filter %.h,$^))))

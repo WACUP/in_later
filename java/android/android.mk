@@ -1,7 +1,7 @@
 ASMA_DIR = ../aasma/asma
 ANDROID_SDK = $(subst \,/,$(LOCALAPPDATA))/Android/Sdk
-ANDROID_JAR = $(ANDROID_SDK)/platforms/android-36/android.jar
-ANDROID_BUILD_TOOLS = $(ANDROID_SDK)/build-tools/36.1.0
+ANDROID_JAR = $(ANDROID_SDK)/platforms/android-37.1/android.jar
+ANDROID_BUILD_TOOLS = $(ANDROID_SDK)/build-tools/37.0.0
 ANDROID_BACKGROUND_FILTER = -brightness-contrast -380x-90
 
 JAVA = $(DO)java
@@ -11,12 +11,6 @@ APKSIGNER = $(DO)$(ANDROID_BUILD_TOOLS)/apksigner.bat
 ZIPALIGN = $(DO)$(ANDROID_BUILD_TOOLS)/zipalign
 ADB = $(ANDROID_SDK)/platform-tools/adb
 ANDROID = $(ANDROID_SDK)/tools/android.bat
-
-# NDK is only needed for the command-line asapconv
-# It ended up in this Makefile even though it's not Java
-ANDROID_NDK = C:/bin/android-ndk-r8c
-ANDROID_NDK_PLATFORM = $(ANDROID_NDK)/platforms/android-3/arch-arm
-ANDROID_CC = $(DO)$(ANDROID_NDK)/toolchains/arm-linux-androideabi-4.6/prebuilt/windows/bin/arm-linux-androideabi-gcc --sysroot=$(ANDROID_NDK_PLATFORM) -s -O2 -Wall -o $@ $(INCLUDEOPTS) $(filter %.c,$^)
 
 # no user-configurable paths below this line
 
@@ -69,7 +63,7 @@ java/android/AndroidASAP-resources.apk: $(addprefix $(srcdir)java/android/,Andro
 	java/android/res/drawable-land/background.jpg java/android/res/drawable-land/stereo.jpg java/android/res/drawable-land-xhdpi/background.jpg java/android/res/drawable-land-xhdpi/stereo.jpg \
 	java/android/res/drawable-port/background.jpg java/android/res/drawable-port/stereo.jpg java/android/res/drawable-port-xhdpi/background.jpg java/android/res/drawable-port-xhdpi/stereo.jpg \
 	$(ASMA_DIR)/index.txt $(JAVA_OBX)
-	$(DO)mkdir -p java/android/gen && $(AAPT) p -f -m -M $< -I $(ANDROID_JAR) -S $(srcdir)java/android/res -A $(ASMA_DIR) --ignore-assets Docs:*.ttt -F $@ -J java/android/gen java/obx
+	$(DO)mkdir -p java/android/gen && $(AAPT) p -f -m -M $< -I $(ANDROID_JAR) -S $(srcdir)java/android/res -A $(ASMA_DIR) --ignore-assets Docs:*.a26:*.ttt -F $@ -J java/android/gen java/obx
 CLEAN += java/android/AndroidASAP-resources.apk java/android/gen/net/sf/asap/R.java
 
 $(ASMA_DIR)/index.txt: java/android/Indexer.class
@@ -115,7 +109,3 @@ CLEAN += java/android/res/drawable-port-xhdpi/stereo.jpg
 android-push-asapconv: java/android/asapconv
 	$(ADB) -d push java/android/asapconv /data/local/tmp/
 .PHONY: android-push-asapconv
-
-java/android/asapconv: $(call src,asapconv.c asap.[ch])
-	$(ANDROID_CC)
-CLEAN += java/android/asapconv

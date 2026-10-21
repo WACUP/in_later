@@ -1,4 +1,15 @@
 ﻿<page title="News">
+	<release version="8.0.1" date="2026-10-20">
+		<ul>
+			<li>Modules with low memory locations can be played (they are relocated)</li>
+			<li>MPT/MD1/MD2 with ff-ff in the last song line are now accepted (MPT composer bug workaround)</li>
+			<li>Fixed POKEY channels unmuted on rewind (the previous fix in 8.0.0 did not work)</li>
+			<li>Relaxed input WAV freqency range for D15/D8 conversion</li>
+			<li>Extended and improved the tests</li>
+			<li>Switched to GitHub.com for code repository, tickets and discussions</li>
+		</ul>
+	</release>
+
 	<release version="8.0.0" date="2026-02-16">
 		<ul>
 			<li>Single <code>win64.msi</code> installer for 64-bit Windows</li>

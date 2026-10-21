@@ -1,16 +1,14 @@
 ﻿<page title="Contact">
 	<h2>Feedback</h2>
-	<p>If you are interested in the ASAP project, please subscribe its
-	<a href="https://lists.sourceforge.net/lists/listinfo/asap-users">mailing list</a>.
-	This list is for users and developers.
-	Once you subscribe, you can post comments, ideas and questions about ASAP.
-	They will be answered ASAP. ;-)</p>
-	<p>Use <a href="https://sourceforge.net/p/asap/_list/tickets">tracker</a>
-	to submit bug reports, feature request and small code patches.</p>
+	<p>Please submit bug reports and feature requests in the
+	<a href="https://github.com/pfusik/asap/issues">GitHub tracker</a>.
+	Old tickets are in the <a href="https://sourceforge.net/p/asap/_list/tickets">SourceForge tracker</a>.</p>
+	<p>Ask questions in <a href="https://github.com/pfusik/asap/discussions">GitHub discussions</a>.
+	The <a href="https://lists.sourceforge.net/lists/listinfo/asap-users">SourceForge mailing list</a> will be retired soon.</p>
 
 	<h2>For software developers</h2>
 	<p>Download the latest source release: <download prefix="asap-" suffix=".tar.gz" />
-	or <a href="https://sourceforge.net/p/asap/code/ci/master/tree/">browse Git repository</a>.</p>
+	or <a href="https://github.com/pfusik/asap">browse Git repository</a>.</p>
 	<p>The project is hosted on SourceForge. Check out <a href="https://sourceforge.net/p/asap/">project pages</a>.</p>
 	<p>ASAP is based on a development library, which you can easily embed in your program.
 	It's not only a fully portable C library - it's better than that.

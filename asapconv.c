@@ -570,7 +570,7 @@ static void convert_to_d15(const char *input_file, bool output_d8)
 		if (block_size < 1 || block_size > 2 || wav_header[34] != 4 << block_size)
 			fatal_error("%s: not 8-bit or 16-bit", wav_file);
 		int wav_rate = wav_header[24] | wav_header[25] << 8 | wav_header[26] << 16 | wav_header[27] << 24;
-		if (wav_rate < 14200 >> output_d8 || wav_rate > 15556 >> output_d8)
+		if (wav_rate < 14000 >> output_d8 || wav_rate > 16000 >> output_d8)
 			fatal_error("%s: invalid sample rate, should be %d\n", wav_file, 15000 >> output_d8);
 		uint32_t wav_len = wav_header[40] | wav_header[41] << 8 | wav_header[42] << 16 | wav_header[43] << 24;
 		wav_len /= block_size;

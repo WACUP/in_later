@@ -13,7 +13,7 @@ FOOBAR2000_SDK_DIR = ../foobar2000_SDK
 WIX = $(DO)wix
 
 # Code signing
-DO_SIGN = $(DO)signtool sign -d "ASAP - Another Slight Atari Player $(VERSION)" -n "Open Source Developer, Piotr Fusik" -tr http://time.certum.pl -fd sha256 -td sha256 $^ && touch $@
+DO_SIGN = $(DO)signtool sign -d "ASAP - Another Slight Atari Player $(VERSION)" -n "Open Source Developer Piotr Fusik" -tr http://time.certum.pl -fd sha256 -td sha256 $^ && touch $@
 
 # no user-configurable paths below this line
 
@@ -122,9 +122,9 @@ CLEAN += win32/bass/bass_asap-res.o win32/bass/x64/bass_asap-res.o
 win32/foo_asap.dll win32/x64/foo_asap.dll: $(call src,win32/foobar2000/foo_asap.cpp asap.[ch] astil.[ch] aatr-stdio.[ch] aatr.h win32/info_dlg.[ch] win32/settings_dlg.[ch]) win32/foobar2000/foo_asap.res \
 	$(FOOBAR2000_SDK_DIR)/foobar2000/foobar2000_component_client/component_client.cpp \
 	$(patsubst %, $(FOOBAR2000_SDK_DIR)/foobar2000/SDK/%.cpp, abort_callback album_art app_close_blocker audio_chunk audio_chunk_channel_config \
-		cfg_var cfg_var_legacy commonObjects completion_notify configStore console file_info file_info_impl file_info_merge filesystem \
+		cfg_var cfg_var_legacy commonObjects completion_notify configStore console file_info file_info_const_impl file_info_impl file_info_merge filesystem \
 		filesystem_helper foosort fsItem guids input input_file_type main_thread_callback metadb_handle metadb_handle_list \
-		playable_location playlist preferences_page replaygain_info service titleformat utility) \
+		playable_location playlist preferences_page replaygain_info service titleformat ui_element utility) \
 	$(patsubst %, $(FOOBAR2000_SDK_DIR)/pfc/%.cpp, audio_math audio_sample bit_array bsearch cpuid filehandle guid other pathUtils sort \
 		splitString2 string-compare string-lite string_base string_conv string-conv-lite threads timers unicode-normalize utf8 win-objects)
 	$(WIN_CL) -DFOOBAR2000 -DWIN32 -DUNICODE -D_UNICODE -EHsc -I$(FOOBAR2000_SDK_DIR) -I$(FOOBAR2000_SDK_DIR)/foobar2000 \

@@ -1,4 +1,4 @@
-CSC = $(DO)csc -nologo -o+ -out:$@ $(if $(filter %.dll,$@),-t:library) $^
+CSC = $(DO)csc -nologo -nullable:enable -o+ -out:$@ $(if $(filter %.dll,$@),-t:library) $^
 NDOC = $(DO)"C:/Program Files (x86)/NDoc3/bin/NDoc3Console.exe"
 
 # no user-configurable paths below this line

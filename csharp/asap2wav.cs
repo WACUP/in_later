@@ -1,7 +1,7 @@
 /*
  * asap2wav.cs - converter of ASAP-supported formats to WAV files
  *
- * Copyright (C) 2008-2025  Piotr Fusik
+ * Copyright (C) 2008-2026  Piotr Fusik
  *
  * This file is part of ASAP (Another Slight Atari Player),
  * see http://asap.sourceforge.net
@@ -28,7 +28,7 @@ using Sf.Asap;
 
 public class Asap2Wav
 {
-	static string OutputFilename = null;
+	static string? OutputFilename = null;
 	static bool OutputHeader = true;
 	static int Song = -1;
 	static int SampleRate = 44100;

@@ -830,7 +830,7 @@ public class ASAPWriter
 			case ASAPModuleType.Md2:
 				if (info.GetPlayerRateScanlines() != 312)
 					throw ASAPConversionException("Impossible conversion");
-				WriteBytes(resource<byte[]>("xexd.obx"), 2, resource<byte[]>("xexd.obx").Length);
+				WriteBytes(resource<byte[]>("xexd.obx"), 2, resource<byte[]>("xexd.obx").Length - 6);
 				WriteWord(Init);
 				if (Player < 0) {
 					WriteByte(0x60); // RTS
@@ -846,7 +846,7 @@ public class ASAPWriter
 			case ASAPModuleType.SapS:
 				throw ASAPConversionException("Impossible conversion");
 			default:
-				WriteBytes(resource<byte[]>("xexb.obx"), 2, resource<byte[]>("xexb.obx").Length);
+				WriteBytes(resource<byte[]>("xexb.obx"), 2, resource<byte[]>("xexb.obx").Length - 11);
 				WriteWord(Init);
 				WriteByte(0x4c); // JMP
 				WriteWord(Player);
