@@ -506,9 +506,7 @@ static int play(const in_char *fn, const int seek_offset)
 			return 1;
 
 		const int channels = ASAPInfo_GetChannels(info);
-		const int maxlatency = (plugin.outMod && plugin.outMod->Open && sample_rate &&
-								channels ? plugin.outMod->Open(sample_rate, channels,
-														BITS_PER_SAMPLE, -1, -1) : -1);
+		const int maxlatency = OpenOutputPlugin(&plugin, sample_rate, channels, BITS_PER_SAMPLE);
 		if (maxlatency < 0)
 			return 1;
 
